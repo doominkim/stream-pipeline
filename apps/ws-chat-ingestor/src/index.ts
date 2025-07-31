@@ -10,6 +10,7 @@ import {
   DatabaseConfig,
 } from "@ws-ingestor/util";
 import { ChatMessage, MESSAGE_TYPES, DEFAULT_PORTS } from "@ws-ingestor/common";
+import { ChzzkModule } from "chzzk-z";
 
 // Load environment variables
 dotenv.config();
