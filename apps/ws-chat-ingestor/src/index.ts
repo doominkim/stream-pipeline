@@ -10,7 +10,8 @@ import {
   DatabaseConfig,
 } from "@ws-ingestor/util";
 import { ChatMessage, MESSAGE_TYPES, DEFAULT_PORTS } from "@ws-ingestor/common";
-import { ChzzkModule } from "chzzk-z";
+import { createCronService } from "./services/cronService";
+import { getAllCronJobs } from "./jobs";
 
 // Load environment variables
 dotenv.config();
@@ -32,6 +33,9 @@ const dbConfig: DatabaseConfig = {
 // Initialize database connection
 const db = createDatabaseConnection(dbConfig);
 
+// Initialize cron service
+const cronService = createCronService();
+
 console.log("dbConfig", dbConfig, db);
 
 // Health check endpoint
@@ -50,6 +54,16 @@ app.get("/health/db", async (req, res) => {
   }
 });
 
+// Cron jobs status endpoint
+app.get("/health/cron", (req, res) => {
+  res.json({
+    status: "healthy",
+    cron: "running",
+    activeJobs: cronService.getJobs(),
+    timestamp: Date.now(),
+  });
+});
+
 // Create HTTP server
 const server = app.listen(port, () => {
   logger.info(`Chat ingestor server running on port ${port}`);
@@ -60,6 +74,14 @@ const wss = new WebSocketServer({ server });
 
 // Store active connections
 const connections = new Map<string, any>();
+
+// Initialize cron jobs
+const cronJobs = getAllCronJobs(db, connections);
+cronJobs.forEach((job) => {
+  cronService.addJob(job);
+});
+
+logger.info(`Initialized ${cronJobs.length} cron jobs`);
 
 wss.on("connection", (ws, req) => {
   const sessionId = generateSessionId();
@@ -133,6 +155,10 @@ wss.on("connection", (ws, req) => {
 // Graceful shutdown
 process.on("SIGTERM", async () => {
   logger.info("SIGTERM received, shutting down gracefully");
+
+  // Stop all cron jobs
+  cronService.shutdown();
+
   wss.close();
   server.close(async () => {
     await db.close();
