@@ -24,6 +24,7 @@ ws-ingestor/
 - 기능: 채팅 메시지 수신 및 브로드캐스팅
 - WebSocket 연결 관리
 - 실시간 채팅 메시지 처리
+- PostgreSQL 데이터베이스 연결 (AWS RDS)
 
 ### ws-audio-ingestor
 
@@ -46,6 +47,7 @@ ws-ingestor/
 - 메시지 검증 및 파싱 함수
 - 세션 ID 생성
 - 헬스체크 유틸리티
+- PostgreSQL 데이터베이스 연결 유틸리티
 
 ## 설치 및 실행
 
@@ -53,6 +55,22 @@ ws-ingestor/
 
 ```bash
 pnpm install
+```
+
+### 환경 변수 설정
+
+ws-chat-ingestor 서비스에서 PostgreSQL 연결을 위해 환경 변수를 설정해야 합니다:
+
+```bash
+# apps/ws-chat-ingestor/.env 파일 생성
+DB_HOST=your-aws-postgresql-endpoint.region.rds.amazonaws.com
+DB_PORT=5432
+DB_NAME=your_database_name
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_SSL=true
+PORT=3001
+NODE_ENV=development
 ```
 
 ### 개발 모드 실행
@@ -91,6 +109,7 @@ pnpm --filter @ws-ingestor/audio-ingestor start
 ### 헬스체크
 
 - `GET /health` - 서비스 상태 확인
+- `GET /health/db` - 데이터베이스 연결 상태 확인 (ws-chat-ingestor만)
 
 ### WebSocket 연결
 

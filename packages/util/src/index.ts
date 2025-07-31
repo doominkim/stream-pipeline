@@ -59,3 +59,6 @@ export const createHealthCheck = (serviceName: string) => {
     uptime: process.uptime(),
   };
 };
+
+// Database utilities
+export * from "./database";
