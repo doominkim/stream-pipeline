@@ -1,19 +1,28 @@
 import { CronJob } from "../services/cronService";
 import { createLogger } from "@ws-ingestor/util";
+import { DatabaseService } from "../services/databaseService";
 
 const logger = createLogger("cron-jobs");
 
 /**
  * 데이터베이스 연결 상태 확인 작업
  */
-export const createDatabaseHealthCheckJob = (db: any): CronJob => ({
+export const createDatabaseHealthCheckJob = (
+  dbService: DatabaseService
+): CronJob => ({
   name: "database-health-check",
-  schedule: "*/1 * * * *", // 30분마다
+  schedule: "*/1 * * * *", // 1분마다
   enabled: true,
   task: async () => {
     try {
-      await db.query("SELECT 1");
-      logger.info("Database health check passed");
+      const health = await dbService.healthCheck();
+      if (health.read && health.write) {
+        logger.info(
+          "Database health check passed - both read and write connections healthy"
+        );
+      } else {
+        logger.warn("Database health check partial failure", { health });
+      }
     } catch (error) {
       logger.error("Database health check failed:", error);
     }
@@ -89,11 +98,11 @@ export const createLogCleanupJob = (): CronJob => ({
  * 모든 크론 작업을 반환합니다
  */
 export const getAllCronJobs = (
-  db: any,
+  dbService: DatabaseService,
   connections: Map<string, any>
 ): CronJob[] => {
   return [
-    createDatabaseHealthCheckJob(db),
+    createDatabaseHealthCheckJob(dbService),
     createConnectionHealthCheckJob(connections),
     createSystemMonitorJob(),
     createLogCleanupJob(),

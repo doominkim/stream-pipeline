@@ -6,11 +6,11 @@ import {
   generateSessionId,
   parseMessage,
   createHealthCheck,
-  createDatabaseConnection,
-  DatabaseConfig,
 } from "@ws-ingestor/util";
 import { ChatMessage, MESSAGE_TYPES, DEFAULT_PORTS } from "@ws-ingestor/common";
 import { createCronService } from "./services/cronService";
+import { createDatabaseService } from "./services/databaseService";
+import { getDatabaseConfigs, validateDatabaseConfigs } from "./config/database";
 import { getAllCronJobs } from "./jobs";
 
 // Load environment variables
@@ -21,22 +21,14 @@ const app = express();
 const port = process.env.PORT || DEFAULT_PORTS.CHAT_INGESTOR;
 
 // Database configuration
-const dbConfig: DatabaseConfig = {
-  host: process.env.DB_HOST || "localhost",
-  port: parseInt(process.env.DB_PORT || "5432"),
-  database: process.env.DB_NAME || "chat_db",
-  user: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "",
-  ssl: process.env.DB_SSL === "true",
-};
+const dbConfigs = getDatabaseConfigs();
+validateDatabaseConfigs(dbConfigs);
 
-// Initialize database connection
-const db = createDatabaseConnection(dbConfig);
+// Initialize database service
+const dbService = createDatabaseService(dbConfigs);
 
 // Initialize cron service
 const cronService = createCronService();
-
-console.log("dbConfig", dbConfig, db);
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -46,8 +38,12 @@ app.get("/health", (req, res) => {
 // Database health check endpoint
 app.get("/health/db", async (req, res) => {
   try {
-    await db.query("SELECT 1");
-    res.json({ status: "healthy", database: "connected" });
+    const health = await dbService.healthCheck();
+    res.json({
+      status: "healthy",
+      database: health.read && health.write ? "connected" : "partial",
+      connections: health,
+    });
   } catch (error) {
     logger.error("Database health check failed:", error);
     res.status(500).json({ status: "unhealthy", database: "disconnected" });
@@ -76,7 +72,7 @@ const wss = new WebSocketServer({ server });
 const connections = new Map<string, any>();
 
 // Initialize cron jobs
-const cronJobs = getAllCronJobs(db, connections);
+const cronJobs = getAllCronJobs(dbService, connections);
 cronJobs.forEach((job) => {
   cronService.addJob(job);
 });
@@ -112,9 +108,9 @@ wss.on("connection", (ws, req) => {
           `Chat message from ${chatMessage.payload.userId} in room ${chatMessage.payload.roomId}`
         );
 
-        // Save chat message to database
+        // Save chat message to database using write connection
         try {
-          await db.query(
+          await dbService.writeQuery(
             "INSERT INTO chat_messages (user_id, room_id, message, timestamp) VALUES ($1, $2, $3, $4)",
             [
               chatMessage.payload.userId,
@@ -161,7 +157,7 @@ process.on("SIGTERM", async () => {
 
   wss.close();
   server.close(async () => {
-    await db.close();
+    await dbService.close();
     logger.info("Server closed");
     process.exit(0);
   });
