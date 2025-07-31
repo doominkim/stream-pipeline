@@ -31,6 +31,8 @@ const dbConfig: DatabaseConfig = {
 // Initialize database connection
 const db = createDatabaseConnection(dbConfig);
 
+console.log("dbConfig", dbConfig, db);
+
 // Health check endpoint
 app.get("/health", (req, res) => {
   res.json(createHealthCheck("chat-ingestor"));
