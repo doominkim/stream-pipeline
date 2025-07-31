@@ -1,0 +1,29 @@
+{
+  "name": "ws-ingestor",
+  "version": "1.0.0",
+  "description": "WebSocket Ingestor Monorepo for MSA",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r run dev",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "clean": "pnpm -r run clean"
+  },
+  "keywords": [
+    "monorepo",
+    "msa",
+    "websocket",
+    "ingestor"
+  ],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.13.1",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/express": "^4.17.0",
+    "@types/ws": "^8.5.0",
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0"
+  }
+}
