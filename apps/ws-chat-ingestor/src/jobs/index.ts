@@ -2,6 +2,7 @@ import { CronJob } from "../services/cronService";
 import { createLogger } from "@ws-ingestor/util";
 import { DatabaseService } from "../services/databaseService";
 import { ChatService } from "../services/chatService";
+import redisService from "../services/redisService";
 
 const logger = createLogger("cron-jobs");
 
@@ -26,6 +27,33 @@ export const createDatabaseHealthCheckJob = (
       }
     } catch (error) {
       logger.error("Database health check failed:", error);
+    }
+  },
+});
+
+/**
+ * Redis 연결 상태 확인 작업
+ */
+export const createRedisHealthCheckJob = (): CronJob => ({
+  name: "redis-health-check",
+  schedule: "*/5 * * * * *", // 5초마다 (node-cron은 초 단위도 지원)
+  enabled: true,
+  task: async () => {
+    try {
+      const startTime = Date.now();
+      const result = await redisService.ping();
+      const responseTime = Date.now() - startTime;
+
+      logger.info("Redis health check passed", {
+        response: result,
+        responseTime: `${responseTime}ms`,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      logger.error("Redis health check failed:", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+      });
     }
   },
 });
@@ -60,5 +88,9 @@ export const createSystemMonitorJob = (): CronJob => ({
  * 모든 크론 작업을 반환합니다
  */
 export const getAllCronJobs = (dbService: DatabaseService): CronJob[] => {
-  return [createDatabaseHealthCheckJob(dbService), createSystemMonitorJob()];
+  return [
+    createDatabaseHealthCheckJob(dbService),
+    createRedisHealthCheckJob(),
+    createSystemMonitorJob(),
+  ];
 };

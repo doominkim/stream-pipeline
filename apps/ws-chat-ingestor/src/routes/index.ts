@@ -21,6 +21,12 @@ export const createRoutes = (
   router.get("/health/db", (req, res) =>
     healthController.getDatabaseHealth(req, res)
   );
+  router.get("/health/redis", (req, res) =>
+    healthController.getRedisHealth(req, res)
+  );
+  router.get("/health/system", (req, res) =>
+    healthController.getSystemHealth(req, res)
+  );
 
   //   // 채팅 API 라우트
   //   router.get("/api/rooms/:roomId/messages", (req, res) =>
