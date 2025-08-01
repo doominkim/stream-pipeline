@@ -23,12 +23,10 @@ validateDatabaseConfigs(dbConfigs);
 
 // Initialize services
 const dbService = createDatabaseService(dbConfigs);
-const chatService = createChatService(dbService);
-const channelService = createChannelService(dbService);
 const cronService = createCronService();
 
 // Setup routes
-const routes = createRoutes(dbService, chatService, channelService);
+const routes = createRoutes(dbService);
 app.use(routes);
 
 // Create HTTP server
