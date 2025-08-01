@@ -1,6 +1,7 @@
 import { CronJob } from "../services/cronService";
 import { createLogger } from "@ws-ingestor/util";
 import { DatabaseService } from "../services/databaseService";
+import { ChatService } from "../services/chatService";
 
 const logger = createLogger("cron-jobs");
 
@@ -26,31 +27,6 @@ export const createDatabaseHealthCheckJob = (
     } catch (error) {
       logger.error("Database health check failed:", error);
     }
-  },
-});
-
-/**
- * 연결된 WebSocket 클라이언트 상태 확인 작업
- */
-export const createConnectionHealthCheckJob = (
-  connections: Map<string, any>
-): CronJob => ({
-  name: "connection-health-check",
-  schedule: "*/5 * * * *", // 5분마다
-  enabled: true,
-  task: async () => {
-    const activeConnections = Array.from(connections.entries()).filter(
-      ([_, ws]) => ws.readyState === 1
-    );
-    logger.info(`Active WebSocket connections: ${activeConnections.length}`);
-
-    // 연결이 끊어진 클라이언트 정리
-    connections.forEach((ws, sessionId) => {
-      if (ws.readyState !== 1) {
-        connections.delete(sessionId);
-        logger.info(`Cleaned up inactive connection: ${sessionId}`);
-      }
-    });
   },
 });
 
@@ -81,30 +57,8 @@ export const createSystemMonitorJob = (): CronJob => ({
 });
 
 /**
- * 로그 파일 정리 작업 (선택적)
- */
-export const createLogCleanupJob = (): CronJob => ({
-  name: "log-cleanup",
-  schedule: "0 2 * * *", // 매일 새벽 2시
-  enabled: false, // 기본적으로 비활성화
-  task: async () => {
-    logger.info("Log cleanup job started");
-    // 로그 파일 정리 로직을 여기에 구현
-    // 예: 30일 이상 된 로그 파일 삭제
-  },
-});
-
-/**
  * 모든 크론 작업을 반환합니다
  */
-export const getAllCronJobs = (
-  dbService: DatabaseService,
-  connections: Map<string, any>
-): CronJob[] => {
-  return [
-    createDatabaseHealthCheckJob(dbService),
-    createConnectionHealthCheckJob(connections),
-    createSystemMonitorJob(),
-    createLogCleanupJob(),
-  ];
+export const getAllCronJobs = (dbService: DatabaseService): CronJob[] => {
+  return [createDatabaseHealthCheckJob(dbService), createSystemMonitorJob()];
 };
