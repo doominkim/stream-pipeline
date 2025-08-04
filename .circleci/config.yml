@@ -160,104 +160,35 @@ jobs:
             echo "Chat Ingestor deployment completed"
 
 workflows:
-  main:
+  version: 2
+  build_and_deploy:
     jobs:
-      - install_pnpm:
-          filters:
-            branches:
-              only: main
+      - install_pnpm
       - install_dependencies:
           requires:
             - install_pnpm
-          filters:
-            branches:
-              only: main
       - build_common_packages:
           requires:
             - install_dependencies
-          filters:
-            branches:
-              only: main
       - build_audio_ingestor:
           requires:
             - build_common_packages
-          filters:
-            branches:
-              only: main
       - build_chat_ingestor:
           requires:
             - build_common_packages
-          filters:
-            branches:
-              only: main
       - test:
           requires:
             - build_audio_ingestor
             - build_chat_ingestor
-          filters:
-            branches:
-              only: main
       - lint:
           requires:
             - build_audio_ingestor
             - build_chat_ingestor
-          filters:
-            branches:
-              only: main
       - deploy_audio_ingestor:
           requires:
             - test
             - lint
-          filters:
-            branches:
-              only: main
       - deploy_chat_ingestor:
           requires:
             - test
             - lint
-          filters:
-            branches:
-              only: main
-
-  manual_deploy:
-    jobs:
-      - install_pnpm:
-          filters:
-            branches:
-              only: main
-      - install_dependencies:
-          requires:
-            - install_pnpm
-          filters:
-            branches:
-              only: main
-      - build_common_packages:
-          requires:
-            - install_dependencies
-          filters:
-            branches:
-              only: main
-      - build_audio_ingestor:
-          requires:
-            - build_common_packages
-          filters:
-            branches:
-              only: main
-      - build_chat_ingestor:
-          requires:
-            - build_common_packages
-          filters:
-            branches:
-              only: main
-      - deploy_audio_ingestor:
-          requires:
-            - build_audio_ingestor
-          filters:
-            branches:
-              only: main
-      - deploy_chat_ingestor:
-          requires:
-            - build_chat_ingestor
-          filters:
-            branches:
-              only: main
