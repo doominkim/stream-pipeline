@@ -178,29 +178,18 @@ workflows:
           filters:
             branches:
               only: main
-            paths:
-              - "packages/**/*"
-              - "pnpm-lock.yaml"
       - build_audio_ingestor:
           requires:
             - build_common_packages
           filters:
             branches:
               only: main
-            paths:
-              - "apps/ws-audio-ingestor/**/*"
-              - "packages/**/*"
-              - "pnpm-lock.yaml"
       - build_chat_ingestor:
           requires:
             - build_common_packages
           filters:
             branches:
               only: main
-            paths:
-              - "apps/ws-chat-ingestor/**/*"
-              - "packages/**/*"
-              - "pnpm-lock.yaml"
       - test:
           requires:
             - build_audio_ingestor
@@ -222,8 +211,6 @@ workflows:
           filters:
             branches:
               only: main
-            paths:
-              - "apps/ws-audio-ingestor/**/*"
       - deploy_chat_ingestor:
           requires:
             - test
@@ -231,8 +218,6 @@ workflows:
           filters:
             branches:
               only: main
-            paths:
-              - "apps/ws-chat-ingestor/**/*"
 
   manual_deploy:
     jobs:
