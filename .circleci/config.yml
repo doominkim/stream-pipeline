@@ -9,8 +9,7 @@ jobs:
           name: Install pnpm
           command: |
             export SHELL=/bin/bash
-            curl -L https://pnpm.js.org/pnpm.js | node - add --global pnpm
-            sudo chown -R $(whoami) $(npm config get prefix)/{lib/node_modules,bin,share}
+            wget -qO- https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
 workflows:
   version: 2
   install:
