@@ -10,6 +10,7 @@ jobs:
           command: |
             export SHELL=/bin/bash
             curl -L https://get.pnpm.io/v6.16.js | node - add --global pnpm@10.14.0
+            sudo chown -R $(whoami) $(npm config get prefix)/{lib/node_modules,bin,share}
 workflows:
   version: 2
   install:
