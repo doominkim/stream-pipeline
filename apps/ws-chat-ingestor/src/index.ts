@@ -1,14 +1,12 @@
-import { WebSocketServer } from "ws";
 import express from "express";
 import dotenv from "dotenv";
 import { createLogger } from "@ws-ingestor/util";
 import { createCronService } from "./services/cronService";
 import { createDatabaseService } from "./services/databaseService";
-import { createChatService } from "./services/chatService";
-import { createChannelService } from "./services/channelService";
 import { getDatabaseConfigs, validateDatabaseConfigs } from "./config/database";
 import { getAllCronJobs } from "./jobs";
 import { createRoutes } from "./routes";
+import { RedisService } from "./services/redisService";
 
 // Load environment variables
 dotenv.config();
@@ -23,6 +21,7 @@ validateDatabaseConfigs(dbConfigs);
 
 // Initialize services
 const dbService = createDatabaseService(dbConfigs);
+const redisService = new RedisService();
 const cronService = createCronService();
 
 // Setup routes
@@ -35,7 +34,7 @@ app.listen(port, () => {
 });
 
 // Initialize cron jobs
-const cronJobs = getAllCronJobs(dbService);
+const cronJobs = getAllCronJobs(dbService, redisService);
 cronJobs.forEach((job) => {
   cronService.addJob(job);
 });

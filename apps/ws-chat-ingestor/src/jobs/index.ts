@@ -1,8 +1,7 @@
 import { CronJob } from "../services/cronService";
 import { createLogger } from "@ws-ingestor/util";
 import { DatabaseService } from "../services/databaseService";
-import { ChatService } from "../services/chatService";
-import redisService from "../services/redisService";
+import { RedisService } from "../services/redisService";
 
 const logger = createLogger("cron-jobs");
 
@@ -13,7 +12,7 @@ export const createDatabaseHealthCheckJob = (
   dbService: DatabaseService
 ): CronJob => ({
   name: "database-health-check",
-  schedule: "*/1 * * * *", // 1분마다
+  schedule: "*/5 * * * * *", // 5초마다
   enabled: true,
   task: async () => {
     try {
@@ -34,7 +33,9 @@ export const createDatabaseHealthCheckJob = (
 /**
  * Redis 연결 상태 확인 작업
  */
-export const createRedisHealthCheckJob = (): CronJob => ({
+export const createRedisHealthCheckJob = (
+  redisService: RedisService
+): CronJob => ({
   name: "redis-health-check",
   schedule: "*/5 * * * * *", // 5초마다 (node-cron은 초 단위도 지원)
   enabled: true,
@@ -87,10 +88,13 @@ export const createSystemMonitorJob = (): CronJob => ({
 /**
  * 모든 크론 작업을 반환합니다
  */
-export const getAllCronJobs = (dbService: DatabaseService): CronJob[] => {
+export const getAllCronJobs = (
+  dbService: DatabaseService,
+  redisService: RedisService
+): CronJob[] => {
   return [
     createDatabaseHealthCheckJob(dbService),
-    createRedisHealthCheckJob(),
+    createRedisHealthCheckJob(redisService),
     createSystemMonitorJob(),
   ];
 };
