@@ -13,6 +13,14 @@ export class RedisService {
       commandTimeout: 5000, // 5초 명령 타임아웃
       lazyConnect: true, // 지연 연결
       maxRetriesPerRequest: 3,
+      // TLS 옵션 추가
+      tls:
+        process.env.REDIS_TLS === "true"
+          ? {
+              rejectUnauthorized: false, // 자체 서명된 인증서 허용
+              servername: process.env.REDIS_HOST || "localhost",
+            }
+          : undefined,
     };
 
     // options가 있으면 기본값과 병합
@@ -70,6 +78,13 @@ const redisService = new RedisService({
   port: parseInt(process.env.REDIS_PORT || "6379"),
   password: process.env.REDIS_PASSWORD,
   db: parseInt(process.env.REDIS_DB || "0"),
+  tls:
+    process.env.REDIS_TLS === "true"
+      ? {
+          rejectUnauthorized: false,
+          servername: process.env.REDIS_HOST || "localhost",
+        }
+      : undefined,
 });
 
 export default redisService;

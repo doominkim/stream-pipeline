@@ -10,7 +10,6 @@ export interface DatabaseConfigs {
 
 export const getDatabaseConfigs = (): DatabaseConfigs => {
   const baseConfig = {
-    port: parseInt(process.env.DB_PORT || "5432"),
     database: process.env.DB_NAME || "chat_db",
     user: process.env.DB_USER || "postgres",
     password: process.env.DB_PASSWORD || "",
@@ -21,10 +20,14 @@ export const getDatabaseConfigs = (): DatabaseConfigs => {
     read: {
       ...baseConfig,
       host: process.env.DB_READ_HOST || process.env.DB_HOST || "localhost",
+      port: parseInt(process.env.DB_READ_PORT || process.env.DB_PORT || "5432"),
     },
     write: {
       ...baseConfig,
       host: process.env.DB_WRITE_HOST || process.env.DB_HOST || "localhost",
+      port: parseInt(
+        process.env.DB_WRITE_PORT || process.env.DB_PORT || "5432"
+      ),
     },
   };
 };
