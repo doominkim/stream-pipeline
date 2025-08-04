@@ -11,10 +11,6 @@ jobs:
           command: |
             export SHELL=/bin/bash
             wget -qO- https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
-      - persist_to_workspace:
-          root: .
-          paths:
-            - .bashrc
 
   install_dependencies:
     docker:
