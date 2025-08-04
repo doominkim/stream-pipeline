@@ -160,7 +160,6 @@ jobs:
             echo "Chat Ingestor deployment completed"
 
 workflows:
-  version: 2
   main:
     jobs:
       - install_pnpm:
