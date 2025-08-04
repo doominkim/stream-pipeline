@@ -2,30 +2,205 @@
 # See: https://circleci.com/docs/configuration-reference
 version: 2.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/jobs-steps/#jobs-overview & https://circleci.com/docs/configuration-reference/#jobs
+# 공통 설정
+orbs:
+  node: circleci/node@5.1.0
+
+# 공통 환경 변수
+environment:
+  NODE_ENV: production
+
+# 공통 파라미터
+parameters:
+  deploy-audio:
+    type: boolean
+    default: false
+  deploy-chat:
+    type: boolean
+    default: false
+
 jobs:
-  say-hello:
-    # Specify the execution environment. You can specify an image from Docker Hub or use one of our convenience images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/executor-intro/ & https://circleci.com/docs/configuration-reference/#executor-job
+  # 의존성 설치 및 빌드
+  install-dependencies:
     docker:
-      # Specify the version you desire here
-      # See: https://circleci.com/developer/images/image/cimg/base
-      - image: cimg/base:current
-
-    # Add steps to the job
-    # See: https://circleci.com/docs/jobs-steps/#steps-overview & https://circleci.com/docs/configuration-reference/#steps
+      - image: cimg/node:20.12
     steps:
-      # Checkout the code as the first step.
       - checkout
-      - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+      - node/install-packages:
+          pkg-manager: pnpm
+          cache-path: node_modules
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - packages/*/node_modules
+            - apps/*/node_modules
 
-# Orchestrate jobs using workflows
-# See: https://circleci.com/docs/workflows/ & https://circleci.com/docs/configuration-reference/#workflows
+  # 공통 패키지 빌드
+  build-common:
+    docker:
+      - image: cimg/node:20.12
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build common packages
+          command: |
+            pnpm --filter @ws-ingestor/common build
+            pnpm --filter @ws-ingestor/util build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - packages/*/dist
+
+  # Audio Ingestor 빌드
+  build-audio-ingestor:
+    docker:
+      - image: cimg/node:20.12
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build Audio Ingestor
+          command: pnpm --filter @ws-ingestor/audio-ingestor build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - apps/ws-audio-ingestor/dist
+
+  # Chat Ingestor 빌드
+  build-chat-ingestor:
+    docker:
+      - image: cimg/node:20.12
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build Chat Ingestor
+          command: pnpm --filter @ws-ingestor/chat-ingestor build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - apps/ws-chat-ingestor/dist
+
+  # Audio Ingestor 배포
+  deploy-audio-ingestor:
+    docker:
+      - image: cimg/node:20.12
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy Audio Ingestor
+          command: |
+            echo "Deploying Audio Ingestor to production..."
+            # 여기에 실제 배포 스크립트 추가
+            # 예: AWS ECS, Docker Hub, 또는 다른 배포 플랫폼
+            echo "Audio Ingestor deployment completed"
+
+  # Chat Ingestor 배포
+  deploy-chat-ingestor:
+    docker:
+      - image: cimg/node:20.12
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy Chat Ingestor
+          command: |
+            echo "Deploying Chat Ingestor to production..."
+            # 여기에 실제 배포 스크립트 추가
+            # 예: AWS ECS, Docker Hub, 또는 다른 배포 플랫폼
+            echo "Chat Ingestor deployment completed"
+
+  # 테스트 실행
+  test:
+    docker:
+      - image: cimg/node:20.12
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run tests
+          command: pnpm test
+
+  # 린트 검사
+  lint:
+    docker:
+      - image: cimg/node:20.12
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run linting
+          command: pnpm lint
+
 workflows:
-  say-hello-workflow: # This is the name of the workflow, feel free to change it to better match your workflow.
-    # Inside the workflow, you define the jobs you want to run.
+  # 메인 워크플로우
+  main:
     jobs:
-      - say-hello
+      - install-dependencies
+      - build-common:
+          requires:
+            - install-dependencies
+      - build-audio-ingestor:
+          requires:
+            - build-common
+      - build-chat-ingestor:
+          requires:
+            - build-common
+      - test:
+          requires:
+            - build-audio-ingestor
+            - build-chat-ingestor
+      - lint:
+          requires:
+            - build-audio-ingestor
+            - build-chat-ingestor
+      - deploy-audio-ingestor:
+          requires:
+            - test
+            - lint
+          filters:
+            branches:
+              only: main
+      - deploy-chat-ingestor:
+          requires:
+            - test
+            - lint
+          filters:
+            branches:
+              only: main
+
+  # 수동 배포 워크플로우
+  manual-deploy:
+    jobs:
+      - install-dependencies
+      - build-common:
+          requires:
+            - install-dependencies
+      - build-audio-ingestor:
+          requires:
+            - build-common
+      - build-chat-ingestor:
+          requires:
+            - build-common
+      - deploy-audio-ingestor:
+          requires:
+            - build-audio-ingestor
+          filters:
+            branches:
+              only: main
+      - deploy-chat-ingestor:
+          requires:
+            - build-chat-ingestor
+          filters:
+            branches:
+              only: main
