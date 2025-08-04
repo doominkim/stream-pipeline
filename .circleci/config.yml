@@ -29,14 +29,19 @@ jobs:
       - run:
           name: Install pnpm
           command: |
-            npm install -g pnpm@10.13.1
+            curl -fsSL https://get.pnpm.io/install.sh | sh -
+            echo 'export PNPM_HOME="$HOME/.local/share/pnpm"' >> $BASH_ENV
+            echo 'export PATH="$PNPM_HOME:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
       - restore_cache:
           keys:
             - v1-dependencies-{{ checksum "pnpm-lock.yaml" }}
             - v1-dependencies-
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile
+          command: |
+            source $BASH_ENV
+            pnpm install --frozen-lockfile
       - save_cache:
           paths:
             - node_modules
@@ -58,12 +63,17 @@ jobs:
       - checkout
       - run:
           name: Install pnpm
-          command: npm install -g pnpm@10.13.1
+          command: |
+            curl -fsSL https://get.pnpm.io/install.sh | sh -
+            echo 'export PNPM_HOME="$HOME/.local/share/pnpm"' >> $BASH_ENV
+            echo 'export PATH="$PNPM_HOME:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
       - attach_workspace:
           at: .
       - run:
           name: Build common packages
           command: |
+            source $BASH_ENV
             pnpm --filter @ws-ingestor/common build
             pnpm --filter @ws-ingestor/util build
       - persist_to_workspace:
@@ -79,12 +89,18 @@ jobs:
       - checkout
       - run:
           name: Install pnpm
-          command: npm install -g pnpm@10.13.1
+          command: |
+            curl -fsSL https://get.pnpm.io/install.sh | sh -
+            echo 'export PNPM_HOME="$HOME/.local/share/pnpm"' >> $BASH_ENV
+            echo 'export PATH="$PNPM_HOME:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
       - attach_workspace:
           at: .
       - run:
           name: Build Audio Ingestor
-          command: pnpm --filter @ws-ingestor/audio-ingestor build
+          command: |
+            source $BASH_ENV
+            pnpm --filter @ws-ingestor/audio-ingestor build
       - persist_to_workspace:
           root: .
           paths:
@@ -98,12 +114,18 @@ jobs:
       - checkout
       - run:
           name: Install pnpm
-          command: npm install -g pnpm@10.13.1
+          command: |
+            curl -fsSL https://get.pnpm.io/install.sh | sh -
+            echo 'export PNPM_HOME="$HOME/.local/share/pnpm"' >> $BASH_ENV
+            echo 'export PATH="$PNPM_HOME:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
       - attach_workspace:
           at: .
       - run:
           name: Build Chat Ingestor
-          command: pnpm --filter @ws-ingestor/chat-ingestor build
+          command: |
+            source $BASH_ENV
+            pnpm --filter @ws-ingestor/chat-ingestor build
       - persist_to_workspace:
           root: .
           paths:
@@ -117,12 +139,17 @@ jobs:
       - checkout
       - run:
           name: Install pnpm
-          command: npm install -g pnpm@10.13.1
+          command: |
+            curl -fsSL https://get.pnpm.io/install.sh | sh -
+            echo 'export PNPM_HOME="$HOME/.local/share/pnpm"' >> $BASH_ENV
+            echo 'export PATH="$PNPM_HOME:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
       - attach_workspace:
           at: .
       - run:
           name: Deploy Audio Ingestor
           command: |
+            source $BASH_ENV
             echo "Deploying Audio Ingestor to production..."
             # 여기에 실제 배포 스크립트 추가
             # 예: AWS ECS, Docker Hub, 또는 다른 배포 플랫폼
@@ -136,12 +163,17 @@ jobs:
       - checkout
       - run:
           name: Install pnpm
-          command: npm install -g pnpm@10.13.1
+          command: |
+            curl -fsSL https://get.pnpm.io/install.sh | sh -
+            echo 'export PNPM_HOME="$HOME/.local/share/pnpm"' >> $BASH_ENV
+            echo 'export PATH="$PNPM_HOME:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
       - attach_workspace:
           at: .
       - run:
           name: Deploy Chat Ingestor
           command: |
+            source $BASH_ENV
             echo "Deploying Chat Ingestor to production..."
             # 여기에 실제 배포 스크립트 추가
             # 예: AWS ECS, Docker Hub, 또는 다른 배포 플랫폼
@@ -155,12 +187,18 @@ jobs:
       - checkout
       - run:
           name: Install pnpm
-          command: npm install -g pnpm@10.13.1
+          command: |
+            curl -fsSL https://get.pnpm.io/install.sh | sh -
+            echo 'export PNPM_HOME="$HOME/.local/share/pnpm"' >> $BASH_ENV
+            echo 'export PATH="$PNPM_HOME:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
       - attach_workspace:
           at: .
       - run:
           name: Run tests
-          command: pnpm test
+          command: |
+            source $BASH_ENV
+            pnpm test
 
   # 린트 검사
   lint:
@@ -170,12 +208,18 @@ jobs:
       - checkout
       - run:
           name: Install pnpm
-          command: npm install -g pnpm@10.13.1
+          command: |
+            curl -fsSL https://get.pnpm.io/install.sh | sh -
+            echo 'export PNPM_HOME="$HOME/.local/share/pnpm"' >> $BASH_ENV
+            echo 'export PATH="$PNPM_HOME:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
       - attach_workspace:
           at: .
       - run:
           name: Run linting
-          command: pnpm lint
+          command: |
+            source $BASH_ENV
+            pnpm lint
 
 workflows:
   # 메인 워크플로우
