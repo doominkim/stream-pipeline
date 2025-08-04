@@ -1,4 +1,5 @@
 version: 2.1
+
 jobs:
   install_pnpm:
     docker:
@@ -10,8 +11,269 @@ jobs:
           command: |
             export SHELL=/bin/bash
             wget -qO- https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .pnpm
+
+  install_dependencies:
+    docker:
+      - image: circleci/node:latest
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "pnpm-lock.yaml" }}
+            - v1-dependencies-
+      - run:
+          name: Install dependencies
+          command: |
+            export SHELL=/bin/bash
+            source $HOME/.bashrc
+            pnpm install --frozen-lockfile
+      - save_cache:
+          paths:
+            - node_modules
+            - packages/*/node_modules
+            - apps/*/node_modules
+          key: v1-dependencies-{{ checksum "pnpm-lock.yaml" }}
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+            - packages/*/node_modules
+            - apps/*/node_modules
+
+  build_common_packages:
+    docker:
+      - image: circleci/node:latest
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build common packages
+          command: |
+            export SHELL=/bin/bash
+            source $HOME/.bashrc
+            pnpm --filter @ws-ingestor/common build
+            pnpm --filter @ws-ingestor/util build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - packages/*/dist
+
+  build_audio_ingestor:
+    docker:
+      - image: circleci/node:latest
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build Audio Ingestor
+          command: |
+            export SHELL=/bin/bash
+            source $HOME/.bashrc
+            pnpm --filter @ws-ingestor/audio-ingestor build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - apps/ws-audio-ingestor/dist
+
+  build_chat_ingestor:
+    docker:
+      - image: circleci/node:latest
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build Chat Ingestor
+          command: |
+            export SHELL=/bin/bash
+            source $HOME/.bashrc
+            pnpm --filter @ws-ingestor/chat-ingestor build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - apps/ws-chat-ingestor/dist
+
+  test:
+    docker:
+      - image: circleci/node:latest
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run tests
+          command: |
+            export SHELL=/bin/bash
+            source $HOME/.bashrc
+            pnpm test
+
+  lint:
+    docker:
+      - image: circleci/node:latest
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run linting
+          command: |
+            export SHELL=/bin/bash
+            source $HOME/.bashrc
+            pnpm lint
+
+  deploy_audio_ingestor:
+    docker:
+      - image: circleci/node:latest
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy Audio Ingestor
+          command: |
+            echo "Deploying Audio Ingestor to production..."
+            # 여기에 실제 배포 스크립트 추가
+            # 예: AWS ECS, Docker Hub, 또는 다른 배포 플랫폼
+            echo "Audio Ingestor deployment completed"
+
+  deploy_chat_ingestor:
+    docker:
+      - image: circleci/node:latest
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Deploy Chat Ingestor
+          command: |
+            echo "Deploying Chat Ingestor to production..."
+            # 여기에 실제 배포 스크립트 추가
+            # 예: AWS ECS, Docker Hub, 또는 다른 배포 플랫폼
+            echo "Chat Ingestor deployment completed"
+
 workflows:
   version: 2
-  install:
+  main:
     jobs:
-      - install_pnpm
+      - install_pnpm:
+          filters:
+            branches:
+              only: main
+      - install_dependencies:
+          requires:
+            - install_pnpm
+          filters:
+            branches:
+              only: main
+      - build_common_packages:
+          requires:
+            - install_dependencies
+          filters:
+            branches:
+              only: main
+            paths:
+              - "packages/**/*"
+              - "pnpm-lock.yaml"
+      - build_audio_ingestor:
+          requires:
+            - build_common_packages
+          filters:
+            branches:
+              only: main
+            paths:
+              - "apps/ws-audio-ingestor/**/*"
+              - "packages/**/*"
+              - "pnpm-lock.yaml"
+      - build_chat_ingestor:
+          requires:
+            - build_common_packages
+          filters:
+            branches:
+              only: main
+            paths:
+              - "apps/ws-chat-ingestor/**/*"
+              - "packages/**/*"
+              - "pnpm-lock.yaml"
+      - test:
+          requires:
+            - build_audio_ingestor
+            - build_chat_ingestor
+          filters:
+            branches:
+              only: main
+      - lint:
+          requires:
+            - build_audio_ingestor
+            - build_chat_ingestor
+          filters:
+            branches:
+              only: main
+      - deploy_audio_ingestor:
+          requires:
+            - test
+            - lint
+          filters:
+            branches:
+              only: main
+            paths:
+              - "apps/ws-audio-ingestor/**/*"
+      - deploy_chat_ingestor:
+          requires:
+            - test
+            - lint
+          filters:
+            branches:
+              only: main
+            paths:
+              - "apps/ws-chat-ingestor/**/*"
+
+  manual_deploy:
+    jobs:
+      - install_pnpm:
+          filters:
+            branches:
+              only: main
+      - install_dependencies:
+          requires:
+            - install_pnpm
+          filters:
+            branches:
+              only: main
+      - build_common_packages:
+          requires:
+            - install_dependencies
+          filters:
+            branches:
+              only: main
+      - build_audio_ingestor:
+          requires:
+            - build_common_packages
+          filters:
+            branches:
+              only: main
+      - build_chat_ingestor:
+          requires:
+            - build_common_packages
+          filters:
+            branches:
+              only: main
+      - deploy_audio_ingestor:
+          requires:
+            - build_audio_ingestor
+          filters:
+            branches:
+              only: main
+      - deploy_chat_ingestor:
+          requires:
+            - build_chat_ingestor
+          filters:
+            branches:
+              only: main
