@@ -34,12 +34,12 @@ jobs:
             - v1-dependencies-{{ checksum "pnpm-lock.yaml" }}
             - v1-dependencies-
       - run:
-        name: Install dependencies
-        command: |
-          set -a
-          source .pnpm
-          set +a
-          pnpm install --frozen-lockfile
+          name: Install dependencies
+          command: |
+            set -a
+            source .pnpm
+            set +a
+            pnpm install --frozen-lockfile
       - save_cache:
           paths:
             - node_modules
