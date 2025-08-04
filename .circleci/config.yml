@@ -6,7 +6,6 @@ jobs:
       - image: circleci/node:latest
     steps:
       - checkout
-      - run: mkdir -p .pnpm
       - run:
           name: Install pnpm
           command: |
@@ -15,12 +14,12 @@ jobs:
       - run:
           name: Export environment
           command: |
-            echo "export PNPM_HOME=$HOME/.local/share/pnpm" > .pnpm
-            echo "export PATH=\$PNPM_HOME:\$PATH" >> .pnpm
+            echo "export PNPM_HOME=$HOME/.local/share/pnpm" > .env
+            echo "export PATH=\$PNPM_HOME:\$PATH" >> .env
       - persist_to_workspace:
           root: .
           paths:
-            - .pnpm
+            - .env
 
   install_dependencies:
     docker:
@@ -37,7 +36,7 @@ jobs:
           name: Install dependencies
           command: |
             set -a
-            source .pnpm
+            source .env
             set +a
             pnpm install --frozen-lockfile
       - save_cache:
