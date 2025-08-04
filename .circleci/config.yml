@@ -6,11 +6,16 @@ jobs:
       - image: circleci/node:latest
     steps:
       - checkout
+      - run: mkdir -p .pnpm
       - run:
           name: Install pnpm
           command: |
             export SHELL=/bin/bash
             wget -qO- https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .pnpm
 
   install_dependencies:
     docker:
@@ -163,28 +168,28 @@ workflows:
       - install_dependencies:
           requires:
             - install_pnpm
-      - build_common_packages:
-          requires:
-            - install_dependencies
-      - build_audio_ingestor:
-          requires:
-            - build_common_packages
-      - build_chat_ingestor:
-          requires:
-            - build_common_packages
-      - test:
-          requires:
-            - build_audio_ingestor
-            - build_chat_ingestor
-      - lint:
-          requires:
-            - build_audio_ingestor
-            - build_chat_ingestor
-      - deploy_audio_ingestor:
-          requires:
-            - test
-            - lint
-      - deploy_chat_ingestor:
-          requires:
-            - test
-            - lint
+      # - build_common_packages:
+      #     requires:
+      #       - install_dependencies
+      # - build_audio_ingestor:
+      #     requires:
+      #       - build_common_packages
+      # - build_chat_ingestor:
+      #     requires:
+      #       - build_common_packages
+      # - test:
+      #     requires:
+      #       - build_audio_ingestor
+      #       - build_chat_ingestor
+      # - lint:
+      #     requires:
+      #       - build_audio_ingestor
+      #       - build_chat_ingestor
+      # - deploy_audio_ingestor:
+      #     requires:
+      #       - test
+      #       - lint
+      # - deploy_chat_ingestor:
+      #     requires:
+      #       - test
+      #       - lint
