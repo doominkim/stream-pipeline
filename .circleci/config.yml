@@ -11,7 +11,7 @@ jobs:
     parameters:
       app_dir:
         type: string
-      image_name:
+      ecr_repo:
         type: string
     steps:
       - checkout
@@ -24,15 +24,15 @@ jobs:
           name: Build Docker image
           command: |
             cd << parameters.app_dir >>
-            docker build -t $AWS_ECR_REGISTRY/<< parameters.image_name >>:$CIRCLE_SHA1 .
+            docker build -t << parameters.ecr_repo >>:$CIRCLE_SHA1 .
       - run:
           name: Login to ECR
           command: |
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ECR_REGISTRY
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 197565756669.dkr.ecr.ap-northeast-2.amazonaws.com
       - run:
           name: Push Docker image
           command: |
-            docker push $AWS_ECR_REGISTRY/<< parameters.image_name >>:$CIRCLE_SHA1
+            docker push << parameters.ecr_repo >>:$CIRCLE_SHA1
 
 workflows:
   version: 2
@@ -41,12 +41,8 @@ workflows:
       - build-and-push:
           name: build-and-push-chat-ingestor
           app_dir: apps/ws-chat-ingestor
-          image_name: ws-chat-ingestor
-      - build-and-push:
-          name: build-and-push-audio-ingestor
-          app_dir: apps/ws-audio-ingestor
-          image_name: ws-audio-ingestor
+          ecr_repo: 197565756669.dkr.ecr.ap-northeast-2.amazonaws.com/chat-ingestor/fyc-chat-ingestor
       - build-and-push:
           name: build-and-push-chat-persistor
           app_dir: apps/ws-chat-persistor
-          image_name: ws-chat-persistor
+          ecr_repo: 197565756669.dkr.ecr.ap-northeast-2.amazonaws.com/chat-persistor/fyc-chat-persistor
