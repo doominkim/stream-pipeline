@@ -2,9 +2,10 @@ import { CronJob } from "../services/cronService";
 import { createLogger } from "@ws-ingestor/util";
 import { DatabaseService } from "../services/databaseService";
 import { RedisService } from "../services/redisService";
+import { createChatService } from "../services/chatService";
+import { ChzzkModule } from "chzzk-z";
 
 const logger = createLogger("cron-jobs");
-
 /**
  * 데이터베이스 연결 상태 확인 작업
  */
@@ -12,7 +13,7 @@ export const createDatabaseHealthCheckJob = (
   dbService: DatabaseService
 ): CronJob => ({
   name: "database-health-check",
-  schedule: "* * * * *", // 1분마다
+  schedule: "*/10 * * * * *", // 1분마다
   enabled: true,
   task: async () => {
     try {
@@ -37,7 +38,7 @@ export const createRedisHealthCheckJob = (
   redisService: RedisService
 ): CronJob => ({
   name: "redis-health-check",
-  schedule: "*/5 * * * * *", // 5초마다 (node-cron은 초 단위도 지원)
+  schedule: "*/10 * * * * *", // 5초마다 (node-cron은 초 단위도 지원)
   enabled: true,
   task: async () => {
     try {
@@ -85,6 +86,39 @@ export const createSystemMonitorJob = (): CronJob => ({
   },
 });
 
+const isCollectingChzzkModules: Map<string, ChzzkModule> = new Map();
+export const createChatIngestJob = (
+  dbService: DatabaseService,
+  redisService: RedisService
+): CronJob => ({
+  name: "chat-ingest",
+  schedule: "*/5 * * * * *", // 10분마다
+  enabled: true,
+  task: async () => {
+    const chatService = createChatService(dbService);
+
+    const uuid = "dc7fb0d085cfbbe90e11836e3b85b784";
+    if (!isCollectingChzzkModules.get(uuid)) {
+      const chzzkModule = new ChzzkModule();
+      try {
+        // 채팅 조인 시도
+        const joinResult = await chzzkModule.chat.join(uuid);
+        console.log(joinResult);
+        isCollectingChzzkModules.set(uuid, chzzkModule);
+        logger.debug(`채널 ${uuid} 채팅 연결 성공`);
+
+        setInterval(() => {
+          const events = chzzkModule.chat.pollingEvent();
+          console.log(events);
+        }, 1000);
+      } catch (joinError) {
+        console.log(joinError);
+        logger.warn(`채널 ${uuid} 채팅 조인 실패:`);
+      }
+    }
+  },
+});
+
 /**
  * 모든 크론 작업을 반환합니다
  */
@@ -93,8 +127,9 @@ export const getAllCronJobs = (
   redisService: RedisService
 ): CronJob[] => {
   return [
-    createDatabaseHealthCheckJob(dbService),
-    createRedisHealthCheckJob(redisService),
-    createSystemMonitorJob(),
+    // createDatabaseHealthCheckJob(dbService),
+    // createRedisHealthCheckJob(redisService),
+    // createSystemMonitorJob(),
+    createChatIngestJob(dbService, redisService),
   ];
 };
