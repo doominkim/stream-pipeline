@@ -12,7 +12,7 @@ export const createDatabaseHealthCheckJob = (
   dbService: DatabaseService
 ): CronJob => ({
   name: "database-health-check",
-  schedule: "* * * * * *", // 5초마다
+  schedule: "* * * * *", // 1분마다
   enabled: true,
   task: async () => {
     try {

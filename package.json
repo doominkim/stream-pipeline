@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "pnpm -r run dev",
     "build": "pnpm -r run build",
+    "dev:chat-ingestor": "pnpm --filter @ws-ingestor/chat-ingestor dev",
+    "build:chat-ingestor": "pnpm --filter @ws-ingestor/chat-ingestor build",
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
     "clean": "pnpm -r run clean"
