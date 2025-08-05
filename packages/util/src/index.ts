@@ -1,5 +1,4 @@
 import winston from "winston";
-import { WebSocketMessage } from "@ws-ingestor/common";
 
 // Logger configuration
 export const createLogger = (serviceName: string) => {
@@ -24,16 +23,17 @@ export const createLogger = (serviceName: string) => {
   });
 };
 
+// 아래 함수들은 WebSocketMessage 타입 의존성 때문에 주석 처리 또는 제거
 // Message validation
-export const validateMessage = (message: any): message is WebSocketMessage => {
-  return (
-    typeof message === "object" &&
-    message !== null &&
-    typeof message.type === "string" &&
-    message.payload !== undefined &&
-    typeof message.timestamp === "number"
-  );
-};
+// export const validateMessage = (message: any): message is WebSocketMessage => {
+//   return (
+//     typeof message === "object" &&
+//     message !== null &&
+//     typeof message.type === "string" &&
+//     message.payload !== undefined &&
+//     typeof message.timestamp === "number"
+//   );
+// };
 
 // Generate session ID
 export const generateSessionId = (): string => {
@@ -41,14 +41,14 @@ export const generateSessionId = (): string => {
 };
 
 // Parse message from WebSocket
-export const parseMessage = (data: any): WebSocketMessage | null => {
-  try {
-    const message = typeof data === "string" ? JSON.parse(data) : data;
-    return validateMessage(message) ? message : null;
-  } catch (error) {
-    return null;
-  }
-};
+// export const parseMessage = (data: any): WebSocketMessage | null => {
+//   try {
+//     const message = typeof data === "string" ? JSON.parse(data) : data;
+//     return validateMessage(message) ? message : null;
+//   } catch (error) {
+//     return null;
+//   }
+// };
 
 // Health check utility
 export const createHealthCheck = (serviceName: string) => {
@@ -62,3 +62,4 @@ export const createHealthCheck = (serviceName: string) => {
 
 // Database utilities
 export * from "./database";
+export * from "./sqs";

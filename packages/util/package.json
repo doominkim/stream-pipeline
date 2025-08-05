@@ -11,9 +11,10 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.859.0",
     "@ws-ingestor/common": "workspace:*",
-    "winston": "^3.11.0",
-    "pg": "^8.11.0"
+    "pg": "^8.11.0",
+    "winston": "^3.11.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

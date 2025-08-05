@@ -4,6 +4,7 @@ import { DatabaseService } from "../services/databaseService";
 import { RedisService } from "../services/redisService";
 import { createChatService } from "../services/chatService";
 import { ChzzkModule } from "chzzk-z";
+import { SqsChatClient } from "@ws-ingestor/util";
 
 const logger = createLogger("cron-jobs");
 /**
@@ -106,9 +107,24 @@ export const createChatIngestJob = (
         isCollectingChzzkModules.set(uuid, chzzkModule);
         logger.debug(`채널 ${uuid} 채팅 연결 성공`);
 
-        setInterval(() => {
+        const sqsClient = new SqsChatClient(
+          process.env.SQS_QUEUE_URL ||
+            "https://sqs.ap-northeast-2.amazonaws.com/197565756669/ws-chat-persist-queue.fifo",
+          process.env.AWS_REGION || "ap-northeast-2"
+        );
+
+        setInterval(async () => {
           const events = chzzkModule.chat.pollingEvent();
-          console.log(events);
+          if (Array.isArray(events)) {
+            for (const chat of events) {
+              try {
+                await sqsClient.sendChat(chat);
+                logger.debug("채팅 SQS 전송 성공", chat);
+              } catch (err) {
+                logger.error("채팅 SQS 전송 실패", err);
+              }
+            }
+          }
         }, 1000);
       } catch (joinError) {
         console.log(joinError);

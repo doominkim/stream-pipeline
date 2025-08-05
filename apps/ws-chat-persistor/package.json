@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.500.0",
-    "dotenv": "^16.3.0"
+    "dotenv": "^16.3.0",
+    "@ws-ingestor/util": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.0.0",

@@ -1,30 +1,16 @@
-import {
-  SQSClient,
-  ReceiveMessageCommand,
-  DeleteMessageCommand,
-} from "@aws-sdk/client-sqs";
+import { SqsChatClient, ChatMessageData } from "@ws-ingestor/util";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const sqs = new SQSClient({ region: process.env.AWS_REGION });
-const queueUrl = process.env.SQS_QUEUE_URL!;
-
-export interface ChatMessageData {
-  userId: string;
-  roomId: string;
-  message: string;
-  timestamp: number;
-}
+const sqsClient = new SqsChatClient(
+  process.env.SQS_QUEUE_URL!,
+  process.env.AWS_REGION!
+);
 
 export async function pollSqsAndProcessMessages() {
   while (true) {
-    const command = new ReceiveMessageCommand({
-      QueueUrl: queueUrl,
-      MaxNumberOfMessages: 10,
-      WaitTimeSeconds: 10,
-    });
-    const response = await sqs.send(command);
+    const response = await sqsClient.receiveMessages();
     if (response.Messages) {
       for (const msg of response.Messages) {
         try {
@@ -34,12 +20,7 @@ export async function pollSqsAndProcessMessages() {
           console.log("[SQS] 채팅 메시지 수신:", chat);
           // 메시지 삭제
           if (msg.ReceiptHandle) {
-            await sqs.send(
-              new DeleteMessageCommand({
-                QueueUrl: queueUrl,
-                ReceiptHandle: msg.ReceiptHandle,
-              })
-            );
+            await sqsClient.deleteMessage(msg.ReceiptHandle);
           }
         } catch (err) {
           console.error("메시지 처리 오류:", err);
