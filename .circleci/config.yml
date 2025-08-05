@@ -23,8 +23,7 @@ jobs:
       - run:
           name: Build Docker image
           command: |
-            cd << parameters.app_dir >>
-            docker build -t << parameters.ecr_repo >>:$CIRCLE_SHA1 .
+            docker build -f << parameters.app_dir >>/Dockerfile -t << parameters.ecr_repo >>:$CIRCLE_SHA1 .
       - run:
           name: Login to ECR
           command: |
