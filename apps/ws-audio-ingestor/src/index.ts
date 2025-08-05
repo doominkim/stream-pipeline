@@ -3,14 +3,9 @@ import express from "express";
 import {
   createLogger,
   generateSessionId,
-  parseMessage,
   createHealthCheck,
 } from "@ws-ingestor/util";
-import {
-  AudioMessage,
-  MESSAGE_TYPES,
-  DEFAULT_PORTS,
-} from "@ws-ingestor/common";
+import { MESSAGE_TYPES, DEFAULT_PORTS } from "@ws-ingestor/common";
 
 const logger = createLogger("audio-ingestor");
 const app = express();
@@ -49,23 +44,24 @@ wss.on("connection", (ws, req) => {
 
   ws.on("message", (data) => {
     try {
-      const message = parseMessage(data);
-      if (!message) {
+      // const message = parseMessage(data);
+      const message = typeof data === "string" ? JSON.parse(data) : data;
+      if (!message || typeof message.type !== "string") {
         logger.warn(`Invalid message received from ${sessionId}`);
         return;
       }
 
       if (message.type === MESSAGE_TYPES.AUDIO) {
-        const audioMessage = message as AudioMessage;
+        // const audioMessage = message as AudioMessage;
         logger.info(
-          `Audio message from ${audioMessage.payload.userId} in room ${audioMessage.payload.roomId}, format: ${audioMessage.payload.format}`
+          `Audio message from ${message.payload?.userId} in room ${message.payload?.roomId}, format: ${message.payload?.format}`
         );
 
         // Broadcast to all connections in the same room
         connections.forEach((connection, connSessionId) => {
           if (connection.readyState === 1) {
             // WebSocket.OPEN
-            connection.send(JSON.stringify(audioMessage));
+            connection.send(JSON.stringify(message));
           }
         });
       }
