@@ -97,13 +97,12 @@ export const createChatIngestJob = (
   task: async () => {
     const chatService = createChatService(dbService);
 
-    const uuid = "dc7fb0d085cfbbe90e11836e3b85b784";
+    const uuid = "6e06f5e1907f17eff543abd06cb62891";
     if (!isCollectingChzzkModules.get(uuid)) {
       const chzzkModule = new ChzzkModule();
       try {
         // 채팅 조인 시도
-        const joinResult = await chzzkModule.chat.join(uuid);
-        console.log(joinResult);
+        await chzzkModule.chat.join(uuid);
         isCollectingChzzkModules.set(uuid, chzzkModule);
         logger.debug(`채널 ${uuid} 채팅 연결 성공`);
 
