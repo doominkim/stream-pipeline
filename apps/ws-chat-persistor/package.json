@@ -4,10 +4,11 @@
   "description": "Chat SQS Worker for ws-ingestor",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsc && node dist/index.js",
+    "dev": "npm run get-secrets && tsc && node dist/index.js",
     "build": "tsc",
     "start": "node dist/index.js",
-    "lint": "eslint src/**/*.ts"
+    "lint": "eslint src/**/*.ts",
+    "get-secrets": "aws secretsmanager get-secret-value --secret-id fyc-secret-dev --query SecretString --output text | jq 'to_entries[] | \"\\(.key)=\\(.value | @text)\"' | sed 's/\"//g' > .env"
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.500.0",
