@@ -23,15 +23,15 @@ jobs:
       - run:
           name: Build Docker image
           command: |
-            docker build -f << parameters.app_dir >>/Dockerfile -t << parameters.ecr_repo >>:$CIRCLE_SHA1 .
+            docker build -f << parameters.app_dir >>/Dockerfile -t $AWS_ECR_REGISTRY/<< parameters.ecr_repo >>:$CIRCLE_SHA1 .
       - run:
           name: Login to ECR
           command: |
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 197565756669.dkr.ecr.ap-northeast-2.amazonaws.com
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ECR_REGISTRY
       - run:
           name: Push Docker image
           command: |
-            docker push << parameters.ecr_repo >>:$CIRCLE_SHA1
+            docker push $AWS_ECR_REGISTRY/<< parameters.ecr_repo >>:$CIRCLE_SHA1
 
 workflows:
   version: 2
@@ -40,8 +40,8 @@ workflows:
       - build-and-push:
           name: build-and-push-chat-ingestor
           app_dir: apps/ws-chat-ingestor
-          ecr_repo: 197565756669.dkr.ecr.ap-northeast-2.amazonaws.com/chat-ingestor/fyc-chat-ingestor
+          ecr_repo: chat-ingestor/fyc-chat-ingestor
       - build-and-push:
           name: build-and-push-chat-persistor
           app_dir: apps/ws-chat-persistor
-          ecr_repo: 197565756669.dkr.ecr.ap-northeast-2.amazonaws.com/chat-persistor/fyc-chat-persistor
+          ecr_repo: chat-persistor/fyc-chat-persistor
