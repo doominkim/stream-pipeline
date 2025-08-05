@@ -61,8 +61,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/util
       chzzk-z:
-        specifier: ^0.1.18
-        version: 0.1.18
+        specifier: 0.1.17
+        version: 0.1.17
       dotenv:
         specifier: ^16.3.0
         version: 16.6.1
@@ -822,8 +822,8 @@ packages:
     resolution: {integrity: sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg==}
     engines: {node: '>= 0.4'}
 
-  chzzk-z@0.1.18:
-    resolution: {integrity: sha512-vSsf9w8za2MH8DIsdKM4ztdtG0rmPEtio23fhJrwh/ym0+OSsRmZLOqC5W6f9Amh8fiFll6TNOZfUYKhviwwiA==}
+  chzzk-z@0.1.17:
+    resolution: {integrity: sha512-tz/mTrx0IuwXbdwQudBwkmm3P8AtsQqOHIbb3IrCZc3RDFQWN3101Q7JNMr6aWUGxaAk0h8lt0jSfSpWwrjk+g==}
 
   class-transformer@0.5.1:
     resolution: {integrity: sha512-SQa1Ws6hUbfC98vKGxZH3KFY0Y1lm5Zm0SY8XX9zbK7FJCyVEac3ATW0RIpwzW+oOfmHE5PMPufDG9hCfoEOMw==}
@@ -2671,7 +2671,7 @@ snapshots:
       call-bind-apply-helpers: 1.0.2
       get-intrinsic: 1.3.0
 
-  chzzk-z@0.1.18:
+  chzzk-z@0.1.17:
     dependencies:
       '@google-cloud/speech': 6.7.1
       axios: 1.11.0
