@@ -1,0 +1,20 @@
+{
+  "name": "@ws-ingestor/chat-persistor",
+  "version": "1.0.0",
+  "description": "Chat SQS Worker for ws-ingestor",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsc && node dist/index.js",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.500.0",
+    "dotenv": "^16.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}
