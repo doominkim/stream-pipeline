@@ -1,0 +1,52 @@
+version: 2.1
+
+executors:
+  node-docker:
+    docker:
+      - image: cimg/node:20.12
+
+jobs:
+  build-and-push:
+    executor: node-docker
+    parameters:
+      app_dir:
+        type: string
+      image_name:
+        type: string
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Install AWS CLI
+          command: |
+            sudo apt-get update && sudo apt-get install -y awscli
+      - run:
+          name: Build Docker image
+          command: |
+            cd << parameters.app_dir >>
+            docker build -t $AWS_ECR_REGISTRY/<< parameters.image_name >>:$CIRCLE_SHA1 .
+      - run:
+          name: Login to ECR
+          command: |
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ECR_REGISTRY
+      - run:
+          name: Push Docker image
+          command: |
+            docker push $AWS_ECR_REGISTRY/<< parameters.image_name >>:$CIRCLE_SHA1
+
+workflows:
+  version: 2
+  build-and-push-all:
+    jobs:
+      - build-and-push:
+          name: build-and-push-chat-ingestor
+          app_dir: apps/ws-chat-ingestor
+          image_name: ws-chat-ingestor
+      - build-and-push:
+          name: build-and-push-audio-ingestor
+          app_dir: apps/ws-audio-ingestor
+          image_name: ws-audio-ingestor
+      - build-and-push:
+          name: build-and-push-chat-persistor
+          app_dir: apps/ws-chat-persistor
+          image_name: ws-chat-persistor
