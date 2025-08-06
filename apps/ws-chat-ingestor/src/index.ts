@@ -1,7 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import { createLogger } from "@ws-ingestor/util";
-import { createCronService } from "./services/cronService";
+import { createCronService, CronJob } from "./services/cronService";
 import { createDatabaseService } from "./services/databaseService";
 import { getDatabaseConfigs, validateDatabaseConfigs } from "./config/database";
 import { getAllCronJobs } from "./jobs";
@@ -35,7 +35,7 @@ app.listen(port, () => {
 
 // Initialize cron jobs
 const cronJobs = getAllCronJobs(dbService, redisService);
-cronJobs.forEach((job) => {
+cronJobs.forEach((job: CronJob) => {
   cronService.addJob(job);
 });
 
