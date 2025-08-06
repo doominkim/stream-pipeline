@@ -8,6 +8,6 @@ COPY . .
 
 RUN npm install -g pnpm@10.13.1
 RUN pnpm install --frozen-lockfile
-RUN pnpm build
+RUN pnpm --filter @ws-ingestor/chat-persistor... build
 
 CMD ["node", "dist/index.js"]
