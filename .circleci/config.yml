@@ -54,8 +54,8 @@ jobs:
             if [ -z "$SLACK_WEBHOOK_URL" ]; then
               echo "SLACK_WEBHOOK_URL is not set"; exit 1;
             fi
-            MSG=$(cat /tmp/slack_message-*.txt | tr '\n' '\\n')
-            PAYLOAD="{\"text\":\"$MSG\"}"
+            MSG=$(cat /tmp/slack_message-*.txt)
+            PAYLOAD=$(jq -n --arg text "$MSG" '{text: $text}')
             curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" $SLACK_WEBHOOK_URL
 
 workflows:
