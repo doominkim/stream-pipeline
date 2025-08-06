@@ -35,11 +35,11 @@ jobs:
       - run:
           name: Write Slack message
           command: |
-            echo "✅ *<< parameters.ecr_repo >>* : $AWS_ECR_REGISTRY/<< parameters.ecr_repo >>:$CIRCLE_SHA1 배포 완료" >> /tmp/slack_message.txt
+            echo "✅ *<< parameters.ecr_repo >>* : $AWS_ECR_REGISTRY/<< parameters.ecr_repo >>:$CIRCLE_SHA1 배포 완료" > /tmp/slack_message-<< parameters.ecr_repo >>.txt
       - persist_to_workspace:
           root: /tmp
           paths:
-            - slack_message.txt
+            - slack_message-<< parameters.ecr_repo >>.txt
 
   slack-notify:
     docker:
@@ -53,7 +53,7 @@ jobs:
             if [ -z "$SLACK_WEBHOOK_URL" ]; then
               echo "SLACK_WEBHOOK_URL is not set"; exit 1;
             fi
-            MSG=$(cat /tmp/slack_message.txt | tr '\n' '\\n')
+            MSG=$(cat /tmp/slack_message-*.txt | tr '\n' '\\n')
             PAYLOAD="{\"text\":\"$MSG\"}"
             curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" $SLACK_WEBHOOK_URL
 
