@@ -35,11 +35,12 @@ jobs:
       - run:
           name: Write Slack message
           command: |
-            echo "✅ *<< parameters.ecr_repo >>* : $AWS_ECR_REGISTRY/<< parameters.ecr_repo >>:$CIRCLE_SHA1 배포 완료" > /tmp/slack_message-<< parameters.ecr_repo >>.txt
+            FILENAME=$(echo "<< parameters.ecr_repo >>" | tr '/' '_')
+            echo "✅ *<< parameters.ecr_repo >>* : $AWS_ECR_REGISTRY/<< parameters.ecr_repo >>:$CIRCLE_SHA1 배포 완료" > /tmp/slack_message-$FILENAME.txt
       - persist_to_workspace:
           root: /tmp
           paths:
-            - slack_message-<< parameters.ecr_repo >>.txt
+            - slack_message-*.txt
 
   slack-notify:
     docker:
