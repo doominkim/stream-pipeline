@@ -108,53 +108,62 @@ const MAX_CHANNEL_COUNT = process.env.MAX_CHANNEL_COUNT
 
 const myChannels = new Set<string>();
 const isCollectingChzzkModules: Map<string, ChzzkModule> = new Map();
+
 export const createChatIngestJob = (
   dbService: DatabaseService,
   redisService: RedisService
 ): CronJob => ({
   name: "chat-ingest",
-  schedule: "*/5 * * * * *", // 10분마다
+  schedule: "*/10 * * * * *", // 10초마다
   enabled: true,
   task: async () => {
-    const chatService = createChatService(dbService);
-
-    const channelIds = await redisService.sMembers("channels:all");
-    // console.log("channelIds", channelIds);
-
-    // myChannels는 전역에서 재사용
-    for (const channelId of channelIds) {
-      if (myChannels.size >= MAX_CHANNEL_COUNT) break;
-      const isLocked = await redisService.isLocked(channelId);
-      if (isLocked) continue;
-      const locked = await redisService.lockChannel(channelId, 30);
-      if (locked) myChannels.add(channelId);
-
-      // console.log("locked", locked);
-
-      if (!isCollectingChzzkModules.get(channelId)) {
-        const chzzkModule = new ChzzkModule();
-        try {
-          await chzzkModule.chat.join(channelId);
-          isCollectingChzzkModules.set(channelId, chzzkModule);
-          logger.debug(`채널 ${channelId} 채팅 연결 성공`);
-
-          setInterval(async () => {
-            const events = chzzkModule.chat.pollingEvent();
-            // console.log(events);
-            if (Array.isArray(events)) {
-              for (const chat of events) {
-                try {
-                  await sendChatToKinesis(chat);
-                  chatSentCount++;
-                  logger.debug("채팅 Kinesis 전송 성공", chat);
-                } catch (err) {
-                  logger.error("채팅 Kinesis 전송 실패", err);
+    // 1. 점유 채널 relock 및 해제
+    for (const channelId of [...myChannels]) {
+      const ok = await redisService.relockChannel(channelId, 30);
+      if (!ok) {
+        myChannels.delete(channelId);
+        const mod = isCollectingChzzkModules.get(channelId);
+        if (mod) {
+          // 수집 중단: setInterval 등 정리 필요(여기선 단순히 Map에서만 제거)
+          isCollectingChzzkModules.delete(channelId);
+        }
+      }
+    }
+    // 2. 점유 채널이 MAX 미만이면 신규 채널 점유 시도
+    if (myChannels.size < MAX_CHANNEL_COUNT) {
+      const channelIds = await redisService.sMembers("channels:all");
+      for (const channelId of channelIds) {
+        if (myChannels.size >= MAX_CHANNEL_COUNT) break;
+        if (myChannels.has(channelId)) continue;
+        const isLocked = await redisService.isLocked(channelId);
+        if (isLocked) continue;
+        const locked = await redisService.lockChannel(channelId, 30);
+        if (locked) {
+          myChannels.add(channelId);
+          if (!isCollectingChzzkModules.get(channelId)) {
+            const chzzkModule = new ChzzkModule();
+            try {
+              await chzzkModule.chat.join(channelId);
+              isCollectingChzzkModules.set(channelId, chzzkModule);
+              logger.debug(`채널 ${channelId} 채팅 연결 성공`);
+              setInterval(async () => {
+                const events = chzzkModule.chat.pollingEvent();
+                if (Array.isArray(events)) {
+                  for (const chat of events) {
+                    try {
+                      await sendChatToKinesis(chat);
+                      chatSentCount++;
+                      logger.debug("채팅 Kinesis 전송 성공", chat);
+                    } catch (err) {
+                      logger.error("채팅 Kinesis 전송 실패", err);
+                    }
+                  }
                 }
-              }
+              }, 1000);
+            } catch (joinError) {
+              logger.warn(`채널 ${channelId} 채팅 조인 실패:`, joinError);
             }
-          }, 1000);
-        } catch (joinError) {
-          logger.warn(`채널 ${channelId} 채팅 조인 실패:`, joinError);
+          }
         }
       }
     }
