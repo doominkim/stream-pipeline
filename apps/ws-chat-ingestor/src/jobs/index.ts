@@ -102,6 +102,11 @@ setInterval(() => {
   chatSentCount = 0;
 }, 60000);
 
+const MAX_CHANNEL_COUNT = process.env.MAX_CHANNEL_COUNT
+  ? Number(process.env.MAX_CHANNEL_COUNT)
+  : 10;
+
+const myChannels = new Set<string>();
 const isCollectingChzzkModules: Map<string, ChzzkModule> = new Map();
 export const createChatIngestJob = (
   dbService: DatabaseService,
@@ -116,10 +121,13 @@ export const createChatIngestJob = (
     const channelIds = await redisService.sMembers("channels:all");
     // console.log("channelIds", channelIds);
 
+    // myChannels는 전역에서 재사용
     for (const channelId of channelIds) {
+      if (myChannels.size >= MAX_CHANNEL_COUNT) break;
       const isLocked = await redisService.isLocked(channelId);
       if (isLocked) continue;
       const locked = await redisService.lockChannel(channelId, 30);
+      if (locked) myChannels.add(channelId);
 
       // console.log("locked", locked);
 
