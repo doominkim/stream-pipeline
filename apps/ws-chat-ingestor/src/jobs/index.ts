@@ -93,10 +93,11 @@ let chatSentCount = 0;
 setInterval(() => {
   const now = new Date();
   const logFile = path.join(
-    __dirname,
+    process.cwd(),
     `chat-kinesis-count-${now.toISOString().slice(0, 10)}.log`
   );
   const logLine = `${now.toISOString()}, count: ${chatSentCount}\n`;
+  console.log(`[KINESIS LOG] writing to:`, logFile, "count:", chatSentCount);
   fs.appendFileSync(logFile, logLine);
   chatSentCount = 0;
 }, 60000);
@@ -113,14 +114,14 @@ export const createChatIngestJob = (
     const chatService = createChatService(dbService);
 
     const channelIds = await redisService.sMembers("channels:all");
-    console.log("channelIds", channelIds);
+    // console.log("channelIds", channelIds);
 
     for (const channelId of channelIds) {
       const isLocked = await redisService.isLocked(channelId);
       if (isLocked) continue;
       const locked = await redisService.lockChannel(channelId, 30);
 
-      console.log("locked", locked);
+      // console.log("locked", locked);
 
       if (!isCollectingChzzkModules.get(channelId)) {
         const chzzkModule = new ChzzkModule();
