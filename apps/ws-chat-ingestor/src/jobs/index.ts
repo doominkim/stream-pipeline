@@ -5,6 +5,8 @@ import { RedisService } from "../services/redisService";
 import { createChatService } from "../services/chatService";
 import { ChzzkModule } from "chzzk-z";
 import { sendChatToKinesis } from "../services/kinesisService";
+import fs from "fs";
+import path from "path";
 
 const logger = createLogger("cron-jobs");
 /**
@@ -87,6 +89,18 @@ export const createSystemMonitorJob = (): CronJob => ({
   },
 });
 
+let chatSentCount = 0;
+setInterval(() => {
+  const now = new Date();
+  const logFile = path.join(
+    __dirname,
+    `chat-kinesis-count-${now.toISOString().slice(0, 10)}.log`
+  );
+  const logLine = `${now.toISOString()}, count: ${chatSentCount}\n`;
+  fs.appendFileSync(logFile, logLine);
+  chatSentCount = 0;
+}, 60000);
+
 const isCollectingChzzkModules: Map<string, ChzzkModule> = new Map();
 export const createChatIngestJob = (
   dbService: DatabaseService,
@@ -98,31 +112,41 @@ export const createChatIngestJob = (
   task: async () => {
     const chatService = createChatService(dbService);
 
-    const uuid = "6e06f5e1907f17eff543abd06cb62891";
-    if (!isCollectingChzzkModules.get(uuid)) {
-      const chzzkModule = new ChzzkModule();
-      try {
-        // 채팅 조인 시도
-        await chzzkModule.chat.join(uuid);
-        isCollectingChzzkModules.set(uuid, chzzkModule);
-        logger.debug(`채널 ${uuid} 채팅 연결 성공`);
+    const channelIds = await redisService.sMembers("channels:all");
+    console.log("channelIds", channelIds);
 
-        setInterval(async () => {
-          const events = chzzkModule.chat.pollingEvent();
-          console.log(events);
-          if (Array.isArray(events)) {
-            for (const chat of events) {
-              try {
-                await sendChatToKinesis(chat);
-                logger.debug("채팅 Kinesis 전송 성공", chat);
-              } catch (err) {
-                logger.error("채팅 Kinesis 전송 실패", err);
+    for (const channelId of channelIds) {
+      const isLocked = await redisService.isLocked(channelId);
+      if (isLocked) continue;
+      const locked = await redisService.lockChannel(channelId, 30);
+
+      console.log("locked", locked);
+
+      if (!isCollectingChzzkModules.get(channelId)) {
+        const chzzkModule = new ChzzkModule();
+        try {
+          await chzzkModule.chat.join(channelId);
+          isCollectingChzzkModules.set(channelId, chzzkModule);
+          logger.debug(`채널 ${channelId} 채팅 연결 성공`);
+
+          setInterval(async () => {
+            const events = chzzkModule.chat.pollingEvent();
+            // console.log(events);
+            if (Array.isArray(events)) {
+              for (const chat of events) {
+                try {
+                  await sendChatToKinesis(chat);
+                  chatSentCount++;
+                  logger.debug("채팅 Kinesis 전송 성공", chat);
+                } catch (err) {
+                  logger.error("채팅 Kinesis 전송 실패", err);
+                }
               }
             }
-          }
-        }, 1000);
-      } catch (joinError) {
-        logger.warn(`채널 ${uuid} 채팅 조인 실패:`, joinError);
+          }, 1000);
+        } catch (joinError) {
+          logger.warn(`채널 ${channelId} 채팅 조인 실패:`, joinError);
+        }
       }
     }
   },

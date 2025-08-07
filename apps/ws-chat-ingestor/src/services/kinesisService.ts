@@ -20,7 +20,7 @@ export async function sendChatToKinesis(chat: ChatMessageData): Promise<void> {
   });
   try {
     const result = await kinesis.send(cmd);
-    console.log(result);
+    // console.log(result);
   } catch (e) {
     // 최소한의 에러 로깅
     console.error("Kinesis 전송 실패", e);

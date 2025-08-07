@@ -77,28 +77,36 @@ export class RedisService {
   }
 
   async isLocked(channelId: string): Promise<string | null> {
-    return this.client.get(`lock:${channelId}`);
+    return this.client.get(`channel:lock:${channelId}`);
   }
 
   async lockChannel(channelId: string, ttlSec?: number): Promise<boolean> {
-    const options: any = { NX: true };
-    if (ttlSec) options.EX = ttlSec;
-    const res = await this.client.set(
-      `lock:${channelId}`,
+    const args: Array<string | number> = ["NX"];
+    if (ttlSec) {
+      args.push("EX", ttlSec);
+    }
+    const res = await (this.client as any).set(
+      `channel:lock:${channelId}`,
       this.instanceName,
-      options
+      ...args
     );
+    const val = await this.client.get(`channel:lock:${channelId}`);
+    console.log(`[lockChannel] set result:`, res, `get value:`, val);
     return res === "OK";
   }
 
   async relockChannel(channelId: string, ttlSec?: number): Promise<boolean> {
-    const options: any = { XX: true };
-    if (ttlSec) options.EX = ttlSec;
-    const res = await this.client.set(
-      `lock:${channelId}`,
+    const args: Array<string | number> = ["XX"];
+    if (ttlSec) {
+      args.push("EX", ttlSec);
+    }
+    const res = await (this.client as any).set(
+      `channel:lock:${channelId}`,
       this.instanceName,
-      options
+      ...args
     );
+    const val = await this.client.get(`channel:lock:${channelId}`);
+    console.log(`[relockChannel] set result:`, res, `get value:`, val);
     return res === "OK";
   }
 
