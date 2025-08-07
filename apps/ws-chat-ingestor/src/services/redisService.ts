@@ -1,9 +1,12 @@
 import Redis, { Redis as RedisClient, RedisOptions } from "ioredis";
+import crypto from "crypto";
 
 export class RedisService {
   private client: RedisClient;
+  readonly instanceName: string;
 
   constructor(options?: RedisOptions) {
+    this.instanceName = crypto.randomUUID();
     // 기본 옵션 제공
     const defaultOptions: RedisOptions = {
       host: process.env.REDIS_HOST || "localhost",
@@ -67,6 +70,36 @@ export class RedisService {
       console.error("Redis PING failed:", error);
       throw error;
     }
+  }
+
+  async sMembers(key: string): Promise<string[]> {
+    return this.client.smembers(key);
+  }
+
+  async isLocked(channelId: string): Promise<string | null> {
+    return this.client.get(`lock:${channelId}`);
+  }
+
+  async lockChannel(channelId: string, ttlSec?: number): Promise<boolean> {
+    const options: any = { NX: true };
+    if (ttlSec) options.EX = ttlSec;
+    const res = await this.client.set(
+      `lock:${channelId}`,
+      this.instanceName,
+      options
+    );
+    return res === "OK";
+  }
+
+  async relockChannel(channelId: string, ttlSec?: number): Promise<boolean> {
+    const options: any = { XX: true };
+    if (ttlSec) options.EX = ttlSec;
+    const res = await this.client.set(
+      `lock:${channelId}`,
+      this.instanceName,
+      options
+    );
+    return res === "OK";
   }
 
   // 필요한 경우, 여기에 커스텀 메서드 추가 (ex. set, get, lock 등)
