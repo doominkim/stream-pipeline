@@ -66,11 +66,6 @@ workflows:
           name: build-and-push-chat-ingestor
           app_dir: apps/ws-chat-ingestor
           ecr_repo: chat-ingestor/fyc-chat-ingestor
-      - build-and-push:
-          name: build-and-push-chat-persistor
-          app_dir: apps/ws-chat-persistor
-          ecr_repo: chat-persistor/fyc-chat-persistor
       - slack-notify:
           requires:
             - build-and-push-chat-ingestor
-            - build-and-push-chat-persistor
