@@ -8,7 +8,7 @@ if [ -f "/app/fyc-secrets.dev.json" ]; then
   echo "Using development secrets file: $SECRET_PATH"
 else
   # EKS 환경: Secret Store CSI 마운트 경로 사용
-  : "${SECRET_PATH:=/mnt/secrets-store/fyc-secret-dev}"
+  : "${SECRET_PATH:=/mnt/secrets-store/fyc-secret-prod}"
   echo "Using EKS secrets path: $SECRET_PATH"
 fi
 
