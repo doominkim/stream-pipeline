@@ -2,6 +2,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# aws-cli와 jq 설치 (Secrets Manager 호출용)
+RUN apk add --no-cache aws-cli jq
+
 COPY package.json pnpm-lock.yaml ./
 COPY ../../packages ./packages
 COPY . .
@@ -11,4 +14,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @ws-ingestor/chat-ingestor... build
 
 WORKDIR /app/apps/ws-chat-ingestor
-CMD ["node", "dist/index.js"]
+RUN chmod +x entrypoint.sh
+
+# 환경변수는 Pod에서 주입 (SECRET_ID, REQUIRED_KEYS, AWS_REGION 등)
+ENTRYPOINT ["./entrypoint.sh"]
