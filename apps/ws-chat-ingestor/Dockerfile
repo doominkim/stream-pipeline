@@ -13,10 +13,10 @@ RUN npm install -g pnpm@10.13.1
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @ws-ingestor/chat-ingestor... build
 
-# entrypoint.sh 권한 설정 (WORKDIR 변경 전)
-RUN chmod +x apps/ws-chat-ingestor/entrypoint.sh
-
 WORKDIR /app/apps/ws-chat-ingestor
+
+# entrypoint.sh 권한 설정 및 확인
+RUN chmod +x entrypoint.sh && ls -la entrypoint.sh
 
 # 환경변수는 Pod에서 주입 (SECRET_ID, REQUIRED_KEYS, AWS_REGION 등)
 ENTRYPOINT ["./entrypoint.sh"]

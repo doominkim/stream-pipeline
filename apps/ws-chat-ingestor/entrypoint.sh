@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 echo "=== ws-chat-ingestor entrypoint.sh 시작 ==="
@@ -23,7 +23,7 @@ cat "$SECRET_FILE"
 echo "환경변수 설정 중..."
 while IFS='=' read -r key value; do
     # 빈 줄과 주석 제외
-    if [[ -n "$key" && ! "$key" =~ ^# ]]; then
+    if [ -n "$key" ] && ! echo "$key" | grep -q '^#'; then
         export "$key"="$value"
         echo "설정됨: $key"
     fi
@@ -31,13 +31,14 @@ done < "$SECRET_FILE"
 
 # 필수 환경변수 확인
 echo "필수 환경변수 확인:"
-required_vars=("KINESIS_STREAM_NAME" "AWS_REGION" "REDIS_HOST" "DB_HOST")
-for var in "${required_vars[@]}"; do
-    if [ -z "${!var}" ]; then
+required_vars="KINESIS_STREAM_NAME AWS_REGION REDIS_HOST DB_HOST"
+for var in $required_vars; do
+    eval "value=\$$var"
+    if [ -z "$value" ]; then
         echo "ERROR: 필수 환경변수 $var가 설정되지 않았습니다"
         exit 1
     else
-        echo "✓ $var=${!var}"
+        echo "✓ $var=$value"
     fi
 done
 
