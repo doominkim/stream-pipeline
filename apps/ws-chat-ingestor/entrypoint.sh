@@ -14,13 +14,9 @@ if [ ! -f "$SECRET_FILE" ]; then
     exit 1
 fi
 
-# 환경변수 설정
-while IFS='=' read -r key value; do
-    # 빈 줄과 주석 제외
-    if [ -n "$key" ] && ! echo "$key" | grep -q '^#'; then
-        export "$key"="$value"
-    fi
-done < "$SECRET_FILE"
+# JSON 환경변수 설정
+echo "JSON 파싱 시작..."
+eval "$(jq -r 'to_entries[] | "export \(.key)=\(.value | @text)"' "$SECRET_FILE")"
 
 # 필수 환경변수 확인
 required_vars="KINESIS_STREAM_NAME AWS_REGION REDIS_HOST DB_HOST"
