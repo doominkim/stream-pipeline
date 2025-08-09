@@ -18,16 +18,6 @@ fi
 echo "JSON 파싱 시작..."
 eval "$(jq -r 'to_entries[] | "export \(.key)=\(.value | @text)"' "$SECRET_FILE")"
 
-# 필수 환경변수 확인
-required_vars="KINESIS_STREAM_NAME AWS_REGION REDIS_HOST DB_HOST"
-for var in $required_vars; do
-    eval "value=\$$var"
-    if [ -z "$value" ]; then
-        echo "ERROR: 필수 환경변수 $var가 설정되지 않았습니다"
-        exit 1
-    fi
-done
-
 # 앱 실행
 echo "=== ws-chat-ingestor 앱 시작 ==="
 exec node dist/index.js
