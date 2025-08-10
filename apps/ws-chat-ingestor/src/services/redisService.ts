@@ -110,6 +110,22 @@ export class RedisService {
     return res === "OK";
   }
 
+  async getChannelInfo(channelUuid: string): Promise<any> {
+    try {
+      const channelData = await this.client.get(`channel:${channelUuid}`);
+      if (!channelData) {
+        return null;
+      }
+      return JSON.parse(channelData);
+    } catch (error) {
+      console.error(
+        `[getChannelInfo] Failed to get channel info for ${channelUuid}:`,
+        error
+      );
+      return null;
+    }
+  }
+
   // 필요한 경우, 여기에 커스텀 메서드 추가 (ex. set, get, lock 등)
 }
 

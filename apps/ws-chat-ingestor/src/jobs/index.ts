@@ -106,8 +106,9 @@ const MAX_CHANNEL_COUNT = process.env.MAX_CHANNEL_COUNT
   ? Number(process.env.MAX_CHANNEL_COUNT)
   : 10;
 
-const myChannels = new Set<string>();
-const isCollectingChzzkModules: Map<string, ChzzkModule> = new Map();
+const myChannels = new Set<string>(); // channelUuid들을 저장
+const isCollectingChzzkModules: Map<string, ChzzkModule> = new Map(); // channelUuid -> ChzzkModule
+const channelUuidToIdMap: Map<string, number> = new Map(); // channelUuid -> actual channelId
 
 export const createChatIngestJob = (
   dbService: DatabaseService,
@@ -118,42 +119,83 @@ export const createChatIngestJob = (
   enabled: true,
   task: async () => {
     // 1. 점유 채널 relock 및 해제
-    for (const channelId of [...myChannels]) {
-      const ok = await redisService.relockChannel(channelId, 30);
+    for (const channelUuid of [...myChannels]) {
+      const ok = await redisService.relockChannel(channelUuid, 30);
       if (!ok) {
-        myChannels.delete(channelId);
-        const mod = isCollectingChzzkModules.get(channelId);
+        myChannels.delete(channelUuid);
+        const mod = isCollectingChzzkModules.get(channelUuid);
         if (mod) {
           // 수집 중단: setInterval 등 정리 필요(여기선 단순히 Map에서만 제거)
-          isCollectingChzzkModules.delete(channelId);
+          isCollectingChzzkModules.delete(channelUuid);
         }
+        channelUuidToIdMap.delete(channelUuid);
+        logger.warn(
+          `[LOCK LOST] ${channelUuid} relock failed, removed from myChannels`
+        );
       }
     }
+
     // 2. 점유 채널이 MAX 미만이면 신규 채널 점유 시도
     if (myChannels.size < MAX_CHANNEL_COUNT) {
-      const channelIds = await redisService.sMembers("channels:all");
-      for (const channelId of channelIds) {
+      const channelUuids = await redisService.sMembers("channels:all");
+      for (const channelUuid of channelUuids) {
         if (myChannels.size >= MAX_CHANNEL_COUNT) break;
-        if (myChannels.has(channelId)) continue;
-        const isLocked = await redisService.isLocked(channelId);
+        if (myChannels.has(channelUuid)) continue;
+
+        const isLocked = await redisService.isLocked(channelUuid);
         if (isLocked) continue;
-        const locked = await redisService.lockChannel(channelId, 30);
+
+        const locked = await redisService.lockChannel(channelUuid, 30);
         if (locked) {
-          myChannels.add(channelId);
-          if (!isCollectingChzzkModules.get(channelId)) {
+          myChannels.add(channelUuid);
+          logger.info(
+            `[LOCK ACQUIRED] ${channelUuid} locked by ${redisService.instanceName}`
+          );
+
+          // 채널 정보 조회하여 실제 channelId 저장
+          const channelInfo = await redisService.getChannelInfo(channelUuid);
+          if (channelInfo && channelInfo.id) {
+            channelUuidToIdMap.set(channelUuid, channelInfo.id);
+            logger.info(
+              `[CHANNEL INFO] ${channelUuid} -> channelId: ${channelInfo.id}, name: ${channelInfo.channelName}`
+            );
+          } else {
+            logger.warn(
+              `[CHANNEL INFO] Failed to get channel info for ${channelUuid}`
+            );
+          }
+
+          if (!isCollectingChzzkModules.get(channelUuid)) {
             const chzzkModule = new ChzzkModule();
             try {
-              await chzzkModule.chat.join(channelId);
-              isCollectingChzzkModules.set(channelId, chzzkModule);
-              logger.debug(`채널 ${channelId} 채팅 연결 성공`);
+              await chzzkModule.chat.join(channelUuid);
+              isCollectingChzzkModules.set(channelUuid, chzzkModule);
+              logger.debug(`채널 ${channelUuid} 채팅 연결 성공`);
+
               setInterval(async () => {
                 const events = chzzkModule.chat.pollingEvent();
                 if (Array.isArray(events)) {
                   for (const chat of events) {
                     try {
-                      await sendChatToKinesis(chat);
-                      chatSentCount++;
-                      logger.debug("채팅 Kinesis 전송 성공", chat);
+                      // 실제 channelId를 chat 객체에 추가
+                      const actualChannelId =
+                        channelUuidToIdMap.get(channelUuid);
+                      if (actualChannelId) {
+                        const chatWithChannelId = {
+                          ...chat,
+                          channelId: actualChannelId,
+                          channelUuid: channelUuid,
+                        };
+                        await sendChatToKinesis(chatWithChannelId);
+                        chatSentCount++;
+                        console.log(
+                          `[CHAT] ${chat.profile?.nickname}: ${chat.msg} (channelId: ${actualChannelId})`
+                        );
+                      } else {
+                        logger.warn(
+                          `[CHAT] No channelId found for ${channelUuid}, skipping chat`
+                        );
+                      }
                     } catch (err) {
                       logger.error("채팅 Kinesis 전송 실패", err);
                     }
@@ -161,7 +203,7 @@ export const createChatIngestJob = (
                 }
               }, 1000);
             } catch (joinError) {
-              logger.warn(`채널 ${channelId} 채팅 조인 실패:`, joinError);
+              logger.warn(`채널 ${channelUuid} 채팅 조인 실패:`, joinError);
             }
           }
         }

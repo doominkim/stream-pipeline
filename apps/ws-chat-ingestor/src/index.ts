@@ -13,7 +13,7 @@ dotenv.config();
 
 const logger = createLogger("chat-ingestor");
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3010;
 
 // Database configuration
 const dbConfigs = getDatabaseConfigs();
