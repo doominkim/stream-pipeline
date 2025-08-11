@@ -2,8 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# aws-cli와 jq 설치 (Secrets Manager 호출용)
-RUN apk add --no-cache aws-cli jq
+# aws-cli, jq, redis-cli 설치 (Secrets Manager 호출용, Redis 디버깅용)
+RUN apk add --no-cache aws-cli jq redis
 
 COPY package.json pnpm-lock.yaml ./
 COPY ../../packages ./packages
