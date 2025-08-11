@@ -32,7 +32,7 @@ jobs:
           name: Push Docker image
           command: |
             docker push $AWS_ECR_REGISTRY/<< parameters.ecr_repo >>:$CIRCLE_SHA1
-                  - run:
+      - run:
           name: Install Kustomize
           command: |
             curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
