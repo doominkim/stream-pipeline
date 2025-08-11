@@ -32,6 +32,26 @@ jobs:
           name: Push Docker image
           command: |
             docker push $AWS_ECR_REGISTRY/<< parameters.ecr_repo >>:$CIRCLE_SHA1
+                  - run:
+          name: Install Kustomize
+          command: |
+            curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+            sudo mv kustomize /usr/local/bin/
+      - run:
+          name: Update GitOps Manifest
+          command: |
+            TAG=$CIRCLE_BUILD_NUM
+            git clone https://$GIT_NAME:$GITHUB_TOKEN@github.com/$GIT_NAME/manifest.git
+            cd manifest
+            echo $TAG
+            sed -i "s/newTag: .*/newTag: \"$TAG\"/" ./was/overlays/staging/kustomization.yaml
+            kustomize build was/overlays/staging > staging.yaml
+            git config --global user.email "$GIT_EMAIL"
+            git config --global user.name "$GIT_NAME"
+            git add .
+            git commit -m "New build with imgTag build-$TAG"
+            git config credential.helper 'cache --timeout=120'
+            git push origin main
       - run:
           name: Write Slack message
           command: |
