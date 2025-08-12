@@ -41,7 +41,7 @@ jobs:
           name: Update GitOps Manifest
           command: |
             TAG=$CIRCLE_BUILD_NUM
-            git clone https://x-access-token:$GITHUB_TOKEN@github.com/$GIT_OWNER/fyc-manifest.git
+            git clone https://x-access-token:$GIT_TOKEN@github.com/$GIT_OWNER/fyc-manifest.git
             cd fyc-manifest
             echo $TAG
             sed -i "s/newTag: .*/newTag: \"$TAG\"/" ./was/overlays/staging/kustomization.yaml
