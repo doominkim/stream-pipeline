@@ -44,8 +44,8 @@ jobs:
             git clone https://x-access-token:$GIT_TOKEN@github.com/$GIT_OWNER/fyc-manifest.git
             cd fyc-manifest
             echo $TAG
-            sed -i "s/newTag: .*/newTag: \"$TAG\"/" ./was/overlays/staging/kustomization.yaml
-            kustomize build was/overlays/staging > staging.yaml
+            sed -i "s/newTag: .*/newTag: \"$TAG\"/" ./chat-ingestor/overlays/dev/kustomization.yaml
+            kustomize build ./chat-ingestor/overlays/dev > dev.yaml
             git config --global user.email "$GIT_EMAIL"
             git config --global user.name "$GIT_USER_NAME"
             git add .
