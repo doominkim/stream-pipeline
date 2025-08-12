@@ -23,7 +23,7 @@ jobs:
       - run:
           name: Build Docker image
           command: |
-            docker build -f << parameters.app_dir >>/Dockerfile -t $AWS_ECR_REGISTRY/<< parameters.ecr_repo >>ws-chat-ingestor:$CIRCLE_BUILD_NUM .
+            docker build -f << parameters.app_dir >>/Dockerfile -t $AWS_ECR_REGISTRY/<< parameters.ecr_repo >>:$CIRCLE_BUILD_NUM .
       - run:
           name: Login to ECR
           command: |
@@ -31,7 +31,7 @@ jobs:
       - run:
           name: Push Docker image
           command: |
-            docker push $AWS_ECR_REGISTRY/<< parameters.ecr_repo >>ws-chat-ingestor:$CIRCLE_BUILD_NUM
+            docker push $AWS_ECR_REGISTRY/<< parameters.ecr_repo >>:$CIRCLE_BUILD_NUM
       - run:
           name: Install Kustomize
           command: |
