@@ -109,6 +109,7 @@ const MAX_CHANNEL_COUNT = process.env.MAX_CHANNEL_COUNT
 const myChannels = new Set<string>(); // channelUuid들을 저장
 const isCollectingChzzkModules: Map<string, ChzzkModule> = new Map(); // channelUuid -> ChzzkModule
 const channelUuidToIdMap: Map<string, number> = new Map(); // channelUuid -> actual channelId
+let cleanupCounter = 0; // 죽은 락 정리 카운터
 
 export const createChatIngestJob = (
   dbService: DatabaseService,
@@ -118,10 +119,18 @@ export const createChatIngestJob = (
   schedule: "*/10 * * * * *", // 10초마다
   enabled: true,
   task: async () => {
+    // 0. 주기적으로 죽은 락 정리 (매 10번째 실행마다)
+    cleanupCounter++;
+    if (cleanupCounter % 10 === 0) {
+      await redisService.cleanupDeadLocks();
+    }
+
     // 1. 점유 채널 relock 및 해제
     for (const channelUuid of [...myChannels]) {
       const ok = await redisService.relockChannel(channelUuid, 30);
       if (!ok) {
+        // relock 실패 시 Redis에서도 락 삭제
+        await redisService.unlockChannel(channelUuid);
         myChannels.delete(channelUuid);
         const mod = isCollectingChzzkModules.get(channelUuid);
         if (mod) {
@@ -130,7 +139,7 @@ export const createChatIngestJob = (
         }
         channelUuidToIdMap.delete(channelUuid);
         logger.warn(
-          `[LOCK LOST] ${channelUuid} relock failed, removed from myChannels`
+          `[LOCK LOST] ${channelUuid} relock failed, removed from myChannels and Redis`
         );
       }
     }

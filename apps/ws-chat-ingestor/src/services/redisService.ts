@@ -126,6 +126,39 @@ export class RedisService {
     }
   }
 
+  async unlockChannel(channelId: string): Promise<boolean> {
+    try {
+      const result = await this.client.del(`channel:lock:${channelId}`);
+      console.log(`[unlockChannel] ${channelId} unlock result:`, result);
+      return result === 1;
+    } catch (error) {
+      console.error(`[unlockChannel] Failed to unlock ${channelId}:`, error);
+      return false;
+    }
+  }
+
+  async cleanupDeadLocks(): Promise<void> {
+    try {
+      const channelUuids = await this.sMembers("channels:all");
+      for (const channelUuid of channelUuids) {
+        const lockOwner = await this.isLocked(channelUuid);
+        if (lockOwner && lockOwner !== this.instanceName) {
+          // 다른 인스턴스의 락이지만, 해당 인스턴스가 실제로 살아있는지 확인
+          // 여기서는 간단히 TTL을 확인하여 만료된 락을 정리
+          const ttl = await this.client.ttl(`channel:lock:${channelUuid}`);
+          if (ttl <= 0) {
+            console.log(
+              `[cleanupDeadLocks] Removing expired lock for ${channelUuid} (owner: ${lockOwner})`
+            );
+            await this.unlockChannel(channelUuid);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[cleanupDeadLocks] Failed to cleanup dead locks:", error);
+    }
+  }
+
   // 필요한 경우, 여기에 커스텀 메서드 추가 (ex. set, get, lock 등)
 }
 
