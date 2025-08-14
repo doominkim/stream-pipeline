@@ -119,12 +119,6 @@ export const createChatIngestJob = (
   schedule: "*/10 * * * * *", // 10초마다
   enabled: true,
   task: async () => {
-    // 0. 주기적으로 죽은 락 정리 (매 10번째 실행마다)
-    cleanupCounter++;
-    if (cleanupCounter % 10 === 0) {
-      await redisService.cleanupDeadLocks();
-    }
-
     // 1. 점유 채널 relock 및 해제
     for (const channelUuid of [...myChannels]) {
       const ok = await redisService.relockChannel(channelUuid, 30);
@@ -146,8 +140,11 @@ export const createChatIngestJob = (
 
     // 2. 점유 채널이 MAX 미만이면 신규 채널 점유 시도
     if (myChannels.size < MAX_CHANNEL_COUNT) {
-      const channelUuids = await redisService.sMembers("channels:all");
-      for (const channelUuid of channelUuids) {
+      const channelUuids = await redisService.keys("channel:*");
+      const { channelUuids: allChannelUuids, lockUuids } =
+        redisService.extractUuidsFromChannelKeys(channelUuids);
+
+      for (const channelUuid of allChannelUuids) {
         if (myChannels.size >= MAX_CHANNEL_COUNT) break;
         if (myChannels.has(channelUuid)) continue;
 

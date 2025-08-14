@@ -80,6 +80,18 @@ export class RedisService {
     return this.client.get(`channel:lock:${channelId}`);
   }
 
+  async keys(pattern: string): Promise<string[]> {
+    return this.client.keys(pattern);
+  }
+
+  async get(key: string): Promise<string | null> {
+    return this.client.get(key);
+  }
+
+  async del(key: string): Promise<number> {
+    return this.client.del(key);
+  }
+
   async lockChannel(channelId: string, ttlSec?: number): Promise<boolean> {
     const args: Array<string | number> = ["NX"];
     if (ttlSec) {
@@ -137,29 +149,23 @@ export class RedisService {
     }
   }
 
-  async cleanupDeadLocks(): Promise<void> {
-    try {
-      const channelUuids = await this.sMembers("channels:all");
-      for (const channelUuid of channelUuids) {
-        const lockOwner = await this.isLocked(channelUuid);
-        if (lockOwner && lockOwner !== this.instanceName) {
-          // 다른 인스턴스의 락이지만, 해당 인스턴스가 실제로 살아있는지 확인
-          // 여기서는 간단히 TTL을 확인하여 만료된 락을 정리
-          const ttl = await this.client.ttl(`channel:lock:${channelUuid}`);
-          if (ttl <= 0) {
-            console.log(
-              `[cleanupDeadLocks] Removing expired lock for ${channelUuid} (owner: ${lockOwner})`
-            );
-            await this.unlockChannel(channelUuid);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("[cleanupDeadLocks] Failed to cleanup dead locks:", error);
-    }
-  }
+  extractUuidsFromChannelKeys(keys: string[]): {
+    channelUuids: string[];
+    lockUuids: string[];
+  } {
+    const channelUuids: string[] = [];
+    const lockUuids: string[] = [];
 
-  // 필요한 경우, 여기에 커스텀 메서드 추가 (ex. set, get, lock 등)
+    for (const key of keys) {
+      if (key.startsWith("channel:lock:")) {
+        lockUuids.push(key.replace("channel:lock:", ""));
+      } else if (key.startsWith("channel:")) {
+        channelUuids.push(key.replace("channel:", ""));
+      }
+    }
+
+    return { channelUuids, lockUuids };
+  }
 }
 
 // 싱글턴 인스턴스 (일반적으로 이렇게 사용)
