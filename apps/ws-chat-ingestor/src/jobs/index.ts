@@ -105,6 +105,7 @@ setInterval(() => {
 const MAX_CHANNEL_COUNT = process.env.MAX_CHANNEL_COUNT
   ? Number(process.env.MAX_CHANNEL_COUNT)
   : 10;
+const MAX_CONCURRENT_USERS = 10000;
 
 const myChannels = new Set<string>(); // channelUuid들을 저장
 const isCollectingChzzkModules: Map<string, ChzzkModule> = new Map(); // channelUuid -> ChzzkModule
@@ -140,20 +141,38 @@ export const createChatIngestJob = (
 
     // 2. 점유 채널이 MAX 미만이면 신규 채널 점유 시도
     if (myChannels.size < MAX_CHANNEL_COUNT) {
+      let currentConcurrentUsers = 0;
+      for (const channelUuid of myChannels) {
+        const info = await redisService.getChannelInfo(channelUuid);
+        const count = Number((info as any)?.concurrentUserCount) || 0;
+        currentConcurrentUsers += count;
+      }
+
       const channelUuids = await redisService.keys("channel:*");
       const { channelUuids: allChannelUuids, lockUuids } =
         redisService.extractUuidsFromChannelKeys(channelUuids);
 
       for (const channelUuid of allChannelUuids) {
         if (myChannels.size >= MAX_CHANNEL_COUNT) break;
+        if (currentConcurrentUsers >= MAX_CONCURRENT_USERS) break;
         if (myChannels.has(channelUuid)) continue;
 
         const isLocked = await redisService.isLocked(channelUuid);
         if (isLocked) continue;
 
+        const candidateInfo = await redisService.getChannelInfo(channelUuid);
+        const candidateConcurrentUsers =
+          Number((candidateInfo as any)?.concurrentUserCount) || 0;
+        if (
+          currentConcurrentUsers + candidateConcurrentUsers >
+          MAX_CONCURRENT_USERS
+        )
+          continue;
+
         const locked = await redisService.lockChannel(channelUuid, 30);
         if (locked) {
           myChannels.add(channelUuid);
+          currentConcurrentUsers += candidateConcurrentUsers;
           logger.info(
             `[LOCK ACQUIRED] ${channelUuid} locked by ${redisService.instanceName}`
           );
