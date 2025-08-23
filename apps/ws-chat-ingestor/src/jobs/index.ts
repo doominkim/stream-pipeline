@@ -90,6 +90,17 @@ export const createSystemMonitorJob = (): CronJob => ({
 });
 
 let chatSentCount = 0;
+let chatBatchBuffer: Array<{
+  chatType: string;
+  chatChannelId: string;
+  message?: string;
+  userIdHash?: string;
+  nickname?: string;
+  profile?: any;
+  extras?: any;
+  channelId?: number;
+}> = [];
+
 setInterval(() => {
   const now = new Date();
   const logFile = path.join(
@@ -104,7 +115,7 @@ setInterval(() => {
 
 const MAX_CHANNEL_COUNT = process.env.MAX_CHANNEL_COUNT
   ? Number(process.env.MAX_CHANNEL_COUNT)
-  : 10;
+  : 100;
 const MAX_CONCURRENT_USERS = 10000;
 
 const myChannels = new Set<string>(); // channelUuid들을 저장
@@ -120,6 +131,19 @@ export const createChatIngestJob = (
   schedule: "*/10 * * * * *", // 10초마다
   enabled: true,
   task: async () => {
+    // 배치 저장 처리 (5초마다 실행)
+    if (chatBatchBuffer.length > 0) {
+      try {
+        await dbService.saveChatLogsBatch(chatBatchBuffer);
+        console.log(
+          `[BATCH SAVE] ${chatBatchBuffer.length} chats saved to RDS`
+        );
+        chatBatchBuffer = [];
+      } catch (error) {
+        logger.error("배치 저장 실패", error);
+      }
+    }
+
     // 1. 점유 채널 relock 및 해제
     for (const channelUuid of [...myChannels]) {
       const ok = await redisService.relockChannel(channelUuid, 30);
@@ -212,25 +236,21 @@ export const createChatIngestJob = (
                           channelUuid: channelUuid,
                         };
 
-                        // RDS에 직접 저장
-                        try {
-                          await dbService.saveChatLog({
-                            chatType: chat.type || "CHAT",
-                            chatChannelId: chat.cid,
-                            message: chat.msg,
-                            userIdHash: chat.profile?.userIdHash,
-                            nickname: chat.profile?.nickname,
-                            profile: chat.profile,
-                            extras: chat.extras,
-                            channelId: actualChannelId,
-                          });
-                          chatSentCount++;
-                          console.log(
-                            `[CHAT] ${chat.profile?.nickname}: ${chat.msg} (channelId: ${actualChannelId}) - Saved to RDS`
-                          );
-                        } catch (dbError) {
-                          logger.error("채팅 RDS 저장 실패", dbError);
-                        }
+                        // 배치 버퍼에 추가
+                        chatBatchBuffer.push({
+                          chatType: chat.type || "CHAT",
+                          chatChannelId: chat.cid,
+                          message: chat.msg,
+                          userIdHash: chat.profile?.userIdHash,
+                          nickname: chat.profile?.nickname,
+                          profile: chat.profile,
+                          extras: chat.extras,
+                          channelId: actualChannelId,
+                        });
+                        chatSentCount++;
+                        console.log(
+                          `[CHAT] ${chat.profile?.nickname}: ${chat.msg} (channelId: ${actualChannelId}) - Added to batch`
+                        );
                       } else {
                         logger.warn(
                           `[CHAT] No channelId found for ${channelUuid}, skipping chat`

@@ -190,6 +190,68 @@ export class DatabaseService {
       throw error;
     }
   }
+
+  /**
+   * 채팅 로그 배치 저장
+   */
+  async saveChatLogsBatch(
+    chatDataList: Array<{
+      chatType: string;
+      chatChannelId: string;
+      message?: string;
+      userIdHash?: string;
+      nickname?: string;
+      profile?: any;
+      extras?: any;
+      channelId?: number;
+    }>
+  ): Promise<void> {
+    if (chatDataList.length === 0) return;
+
+    try {
+      const values = chatDataList
+        .map((_, index) => {
+          const offset = index * 8;
+          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${
+            offset + 4
+          }, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${
+            offset + 8
+          }, NOW())`;
+        })
+        .join(", ");
+
+      const query = `
+        INSERT INTO "channelChatLog" (
+          "chatType", 
+          "chatChannelId", 
+          "message", 
+          "userIdHash", 
+          "nickname", 
+          "profile", 
+          "extras", 
+          "channelId",
+          "createdAt"
+        ) VALUES ${values}
+      `;
+
+      const params = chatDataList.flatMap((chatData) => [
+        chatData.chatType,
+        chatData.chatChannelId,
+        chatData.message || null,
+        chatData.userIdHash || null,
+        chatData.nickname || null,
+        chatData.profile ? JSON.stringify(chatData.profile) : null,
+        chatData.extras ? JSON.stringify(chatData.extras) : null,
+        chatData.channelId || null,
+      ]);
+
+      await this.writeQuery(query, params);
+      this.logger.debug(`Batch saved ${chatDataList.length} chat logs`);
+    } catch (error) {
+      this.logger.error("Failed to save chat logs batch:", error);
+      throw error;
+    }
+  }
 }
 
 export const createDatabaseService = (
