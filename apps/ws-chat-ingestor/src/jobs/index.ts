@@ -211,11 +211,26 @@ export const createChatIngestJob = (
                           channelId: actualChannelId,
                           channelUuid: channelUuid,
                         };
-                        await sendChatToKinesis(chatWithChannelId);
-                        chatSentCount++;
-                        console.log(
-                          `[CHAT] ${chat.profile?.nickname}: ${chat.msg} (channelId: ${actualChannelId})`
-                        );
+
+                        // RDS에 직접 저장
+                        try {
+                          await dbService.saveChatLog({
+                            chatType: chat.type || "CHAT",
+                            chatChannelId: chat.cid,
+                            message: chat.msg,
+                            userIdHash: chat.profile?.userIdHash,
+                            nickname: chat.profile?.nickname,
+                            profile: chat.profile,
+                            extras: chat.extras,
+                            channelId: actualChannelId,
+                          });
+                          chatSentCount++;
+                          console.log(
+                            `[CHAT] ${chat.profile?.nickname}: ${chat.msg} (channelId: ${actualChannelId}) - Saved to RDS`
+                          );
+                        } catch (dbError) {
+                          logger.error("채팅 RDS 저장 실패", dbError);
+                        }
                       } else {
                         logger.warn(
                           `[CHAT] No channelId found for ${channelUuid}, skipping chat`

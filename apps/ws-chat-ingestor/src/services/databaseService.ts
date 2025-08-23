@@ -141,6 +141,55 @@ export class DatabaseService {
       throw error;
     }
   }
+
+  /**
+   * 채팅 로그 저장
+   */
+  async saveChatLog(chatData: {
+    chatType: string;
+    chatChannelId: string;
+    message?: string;
+    userIdHash?: string;
+    nickname?: string;
+    profile?: any;
+    extras?: any;
+    channelId?: number;
+  }): Promise<void> {
+    try {
+      const query = `
+        INSERT INTO "channelChatLog" (
+          "chatType", 
+          "chatChannelId", 
+          "message", 
+          "userIdHash", 
+          "nickname", 
+          "profile", 
+          "extras", 
+          "channelId",
+          "createdAt"
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+      `;
+
+      const params = [
+        chatData.chatType,
+        chatData.chatChannelId,
+        chatData.message || null,
+        chatData.userIdHash || null,
+        chatData.nickname || null,
+        chatData.profile ? JSON.stringify(chatData.profile) : null,
+        chatData.extras ? JSON.stringify(chatData.extras) : null,
+        chatData.channelId || null,
+      ];
+
+      await this.writeQuery(query, params);
+      this.logger.debug(
+        `Chat log saved for channel: ${chatData.chatChannelId}`
+      );
+    } catch (error) {
+      this.logger.error("Failed to save chat log:", error);
+      throw error;
+    }
+  }
 }
 
 export const createDatabaseService = (
