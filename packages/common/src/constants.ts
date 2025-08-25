@@ -10,4 +10,5 @@ export const MESSAGE_TYPES = {
 export const DEFAULT_PORTS = {
   CHAT_INGESTOR: 3001,
   AUDIO_INGESTOR: 3002,
+  MEDIA_INGESTOR: 3003,
 } as const;
