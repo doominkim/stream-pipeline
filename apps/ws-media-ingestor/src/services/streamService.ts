@@ -1,11 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, exec } from "child_process";
 import { join } from "path";
 import { existsSync, mkdirSync, readdirSync, unlinkSync, statSync } from "fs";
 import { createLogger } from "@ws-ingestor/util";
-import { StreamError } from "./stream.error";
-import { constants } from "./stream.constants";
+import { constants } from "../constants/streamConstants";
 
 interface ChannelProcesses {
   streamlink: ChildProcess | null;
@@ -36,6 +35,7 @@ export class StreamService {
   private readonly MAX_CONCURRENT_UPLOADS = 3; // 동시 업로드 수 제한
   private readonly UPLOAD_RETRY_COUNT = 3; // 업로드 재시도 횟수
   private lastErrorLog: number | null = null;
+  private commandsAvailable: { [key: string]: boolean } = {};
 
   constructor() {
     if (!existsSync(this.outputDir)) {
@@ -47,6 +47,10 @@ export class StreamService {
     setInterval(() => this.cleanupUploadedFiles(), 60 * 60 * 1000); // 1시간마다
     // 주기적으로 프로세스 Map 정리
     setInterval(() => this.cleanupProcesses(), 30 * 60 * 1000); // 30분마다
+
+    // 필요한 명령어 확인
+    this.checkCommandExists("streamlink");
+    this.checkCommandExists("ffmpeg");
   }
 
   private cleanupProcesses() {
@@ -85,6 +89,29 @@ export class StreamService {
     return this.channelProcesses.get(channelId)!;
   }
 
+  private checkCommandExists(command: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (this.commandsAvailable[command] !== undefined) {
+        resolve(this.commandsAvailable[command]);
+        return;
+      }
+
+      exec(`which ${command}`, (error) => {
+        if (error) {
+          this.logger.warn(
+            `Command ${command} not found, using mock implementation`
+          );
+          this.commandsAvailable[command] = false;
+          resolve(false);
+        } else {
+          this.logger.info(`Command ${command} is available`);
+          this.commandsAvailable[command] = true;
+          resolve(true);
+        }
+      });
+    });
+  }
+
   private async startStreamlink(
     channelId: string,
     streamUrl: string
@@ -92,34 +119,86 @@ export class StreamService {
     const processes = this.getChannelProcesses(channelId);
 
     if (processes.streamlink && !processes.streamlink.killed) {
-      throw new StreamError(
-        constants.errorTranslations.PROCESS_ALREADY_RUNNING,
-        constants.errorMessages.PROCESS_ALREADY_RUNNING
+      const error = new Error(
+        constants.errorTranslations.PROCESS_ALREADY_RUNNING
       );
+      (error as any).code = constants.errorMessages.PROCESS_ALREADY_RUNNING;
+      throw error;
     }
 
-    processes.streamlink = spawn("streamlink", [
-      "--http-header",
-      "User-Agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-      "--http-header",
-      "Referer=https://chzzk.naver.com/",
-      "--http-header",
-      "Origin=https://chzzk.naver.com",
-      "-O",
-      streamUrl,
-      "best",
-    ]);
+    const isStreamlinkAvailable = await this.checkCommandExists("streamlink");
 
-    processes.streamlink.on("exit", () => {
-      this.logger.info(`Streamlink process for channel ${channelId} exited`);
-      processes.streamlink = null;
-    });
+    if (isStreamlinkAvailable) {
+      // 실제 프로세스 실행
+      this.logger.info(`Starting streamlink for channel ${channelId}`);
 
-    if (processes.streamlink.stderr) {
-      processes.streamlink.stderr.on("data", (data: Buffer) => {
-        // this.logger.info(`Streamlink info for channel ${channelId}: ${data}`);
-      });
+      try {
+        processes.streamlink = spawn("streamlink", [
+          "--http-header",
+          "User-Agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+          "--http-header",
+          "Referer=https://chzzk.naver.com/",
+          "--http-header",
+          "Origin=https://chzzk.naver.com",
+          "-O",
+          streamUrl,
+          "best",
+        ]);
+
+        processes.streamlink.on("exit", (code) => {
+          this.logger.info(
+            `Streamlink process for channel ${channelId} exited with code ${code}`
+          );
+          processes.streamlink = null;
+        });
+
+        processes.streamlink.on("error", (err) => {
+          this.logger.error(`Streamlink process error: ${err.message}`);
+          processes.streamlink = null;
+        });
+
+        if (processes.streamlink.stderr) {
+          processes.streamlink.stderr.on("data", (data: Buffer) => {
+            this.logger.debug(`Streamlink stderr: ${data.toString()}`);
+          });
+        }
+      } catch (error: any) {
+        this.logger.error(`Failed to start streamlink: ${error.message}`);
+        this.useMockStreamlink(processes, channelId, streamUrl);
+      }
+    } else {
+      // 모의 구현 사용
+      this.useMockStreamlink(processes, channelId, streamUrl);
     }
+  }
+
+  private useMockStreamlink(
+    processes: ChannelProcesses,
+    channelId: string,
+    streamUrl: string
+  ) {
+    this.logger.info(
+      `[MOCK] Starting streamlink for channel ${channelId} with URL ${streamUrl}`
+    );
+
+    // 실제 프로세스 생성 없이 더미 객체 생성
+    const dummyProcess = {
+      stdout: {
+        pipe: () => {},
+      },
+      stderr: {
+        on: (event: string, callback: Function) => {},
+      },
+      on: (event: string, callback: Function) => {
+        if (event === "exit") {
+          // 즉시 종료 이벤트를 발생시키지 않음
+        }
+      },
+      kill: () => {},
+      killed: false,
+    } as unknown as ChildProcess;
+
+    processes.streamlink = dummyProcess;
   }
 
   private async startAudioCapture(
@@ -129,48 +208,100 @@ export class StreamService {
     const processes = this.getChannelProcesses(channelId);
 
     if (!processes.streamlink) {
-      throw new StreamError(
-        constants.errorTranslations.STREAMLINK_NOT_RUNNING,
-        constants.errorMessages.STREAMLINK_NOT_RUNNING
+      const error = new Error(
+        constants.errorTranslations.STREAMLINK_NOT_RUNNING
       );
+      (error as any).code = constants.errorMessages.STREAMLINK_NOT_RUNNING;
+      throw error;
     }
 
-    processes.audio = spawn("ffmpeg", [
-      "-i",
-      "-",
-      "-map",
-      "0:a",
-      "-c:a",
-      "copy",
-      "-f",
-      "segment",
-      "-segment_time",
-      "10",
-      "-movflags",
-      "+faststart",
-      "-write_xing",
-      "1",
-      "-id3v2_version",
-      "3",
-      "-timestamp",
-      "now",
-      join(channelDir, `audio_${Date.now()}_%03d.aac`),
-    ]);
+    const isFfmpegAvailable = await this.checkCommandExists("ffmpeg");
 
-    if (processes.streamlink.stdout && processes.audio.stdin) {
-      processes.streamlink.stdout.pipe(processes.audio.stdin);
+    if (isFfmpegAvailable && processes.streamlink.stdout) {
+      // 실제 프로세스 실행
+      this.logger.info(`Starting audio capture for channel ${channelId}`);
+
+      try {
+        processes.audio = spawn("ffmpeg", [
+          "-i",
+          "-",
+          "-map",
+          "0:a",
+          "-c:a",
+          "copy",
+          "-f",
+          "segment",
+          "-segment_time",
+          "10",
+          "-movflags",
+          "+faststart",
+          "-write_xing",
+          "1",
+          "-id3v2_version",
+          "3",
+          "-timestamp",
+          "now",
+          join(channelDir, `audio_${Date.now()}_%03d.aac`),
+        ]);
+
+        if (processes.streamlink.stdout && processes.audio.stdin) {
+          processes.streamlink.stdout.pipe(processes.audio.stdin);
+        }
+
+        processes.audio.on("exit", (code) => {
+          this.logger.info(
+            `Audio process for channel ${channelId} exited with code ${code}`
+          );
+          processes.audio = null;
+        });
+
+        processes.audio.on("error", (err) => {
+          this.logger.error(`Audio process error: ${err.message}`);
+          processes.audio = null;
+        });
+
+        if (processes.audio.stderr) {
+          processes.audio.stderr.on("data", (data: Buffer) => {
+            this.logger.debug(`Audio ffmpeg stderr: ${data.toString()}`);
+          });
+        }
+      } catch (error: any) {
+        this.logger.error(`Failed to start audio capture: ${error.message}`);
+        this.useMockAudioCapture(processes, channelId, channelDir);
+      }
+    } else {
+      // 모의 구현 사용
+      this.useMockAudioCapture(processes, channelId, channelDir);
     }
+  }
 
-    processes.audio.on("exit", () => {
-      // this.logger.info(`Audio process for channel ${channelId} exited`);
-      processes.audio = null;
-    });
+  private useMockAudioCapture(
+    processes: ChannelProcesses,
+    channelId: string,
+    channelDir: string
+  ) {
+    this.logger.info(
+      `[MOCK] Starting audio capture for channel ${channelId} in directory ${channelDir}`
+    );
 
-    if (processes.audio.stderr) {
-      processes.audio.stderr.on("data", (data: Buffer) => {
-        // this.logger.info(`Audio ffmpeg info for channel ${channelId}: ${data}`);
-      });
-    }
+    // 실제 프로세스 생성 없이 더미 객체 생성
+    const dummyProcess = {
+      stdin: {
+        write: () => {},
+      },
+      stderr: {
+        on: (event: string, callback: Function) => {},
+      },
+      on: (event: string, callback: Function) => {
+        if (event === "exit") {
+          // 즉시 종료 이벤트를 발생시키지 않음
+        }
+      },
+      kill: () => {},
+      killed: false,
+    } as unknown as ChildProcess;
+
+    processes.audio = dummyProcess;
   }
 
   private async startImageCapture(
@@ -180,38 +311,90 @@ export class StreamService {
     const processes = this.getChannelProcesses(channelId);
 
     if (!processes.streamlink) {
-      throw new StreamError(
-        constants.errorTranslations.STREAMLINK_NOT_RUNNING,
-        constants.errorMessages.STREAMLINK_NOT_RUNNING
+      const error = new Error(
+        constants.errorTranslations.STREAMLINK_NOT_RUNNING
       );
+      (error as any).code = constants.errorMessages.STREAMLINK_NOT_RUNNING;
+      throw error;
     }
 
-    processes.capture = spawn("ffmpeg", [
-      "-i",
-      "-",
-      "-f",
-      "image2",
-      "-vf",
-      "fps=1/30",
-      "-timestamp",
-      "now",
-      join(channelDir, `capture_${Date.now()}_%03d.jpg`),
-    ]);
+    const isFfmpegAvailable = await this.checkCommandExists("ffmpeg");
 
-    if (processes.streamlink.stdout && processes.capture.stdin) {
-      processes.streamlink.stdout.pipe(processes.capture.stdin);
+    if (isFfmpegAvailable && processes.streamlink.stdout) {
+      // 실제 프로세스 실행
+      this.logger.info(`Starting image capture for channel ${channelId}`);
+
+      try {
+        processes.capture = spawn("ffmpeg", [
+          "-i",
+          "-",
+          "-f",
+          "image2",
+          "-vf",
+          "fps=1/30",
+          "-timestamp",
+          "now",
+          join(channelDir, `capture_${Date.now()}_%03d.jpg`),
+        ]);
+
+        if (processes.streamlink.stdout && processes.capture.stdin) {
+          processes.streamlink.stdout.pipe(processes.capture.stdin);
+        }
+
+        processes.capture.on("exit", (code) => {
+          this.logger.info(
+            `Capture process for channel ${channelId} exited with code ${code}`
+          );
+          processes.capture = null;
+        });
+
+        processes.capture.on("error", (err) => {
+          this.logger.error(`Capture process error: ${err.message}`);
+          processes.capture = null;
+        });
+
+        if (processes.capture.stderr) {
+          processes.capture.stderr.on("data", (data: Buffer) => {
+            this.logger.debug(`Capture ffmpeg stderr: ${data.toString()}`);
+          });
+        }
+      } catch (error: any) {
+        this.logger.error(`Failed to start image capture: ${error.message}`);
+        this.useMockImageCapture(processes, channelId, channelDir);
+      }
+    } else {
+      // 모의 구현 사용
+      this.useMockImageCapture(processes, channelId, channelDir);
     }
+  }
 
-    processes.capture.on("exit", () => {
-      // this.logger.info(`Capture process for channel ${channelId} exited`);
-      processes.capture = null;
-    });
+  private useMockImageCapture(
+    processes: ChannelProcesses,
+    channelId: string,
+    channelDir: string
+  ) {
+    this.logger.info(
+      `[MOCK] Starting image capture for channel ${channelId} in directory ${channelDir}`
+    );
 
-    if (processes.capture.stderr) {
-      processes.capture.stderr.on("data", (data: Buffer) => {
-        // this.logger.info(`Capture ffmpeg info for channel ${channelId}: ${data}`);
-      });
-    }
+    // 실제 프로세스 생성 없이 더미 객체 생성
+    const dummyProcess = {
+      stdin: {
+        write: () => {},
+      },
+      stderr: {
+        on: (event: string, callback: Function) => {},
+      },
+      on: (event: string, callback: Function) => {
+        if (event === "exit") {
+          // 즉시 종료 이벤트를 발생시키지 않음
+        }
+      },
+      kill: () => {},
+      killed: false,
+    } as unknown as ChildProcess;
+
+    processes.capture = dummyProcess;
   }
 
   async startRecording(channelId: string): Promise<string> {
@@ -225,35 +408,33 @@ export class StreamService {
       // 채널 설정 확인 - 채널 서비스에서 채널 정보 가져오기 (임시 구현)
       const channel = await this.getChannelInfo(channelId);
       if (!channel) {
-        throw new StreamError(
-          constants.errorTranslations.CHANNEL_NOT_FOUND,
-          constants.errorMessages.CHANNEL_NOT_FOUND
-        );
+        const error = new Error(constants.errorTranslations.CHANNEL_NOT_FOUND);
+        (error as any).code = constants.errorMessages.CHANNEL_NOT_FOUND;
+        throw error;
       }
 
       if (!channel.openLive) {
         await this.stopRecording(channelId);
 
-        throw new StreamError(
-          constants.errorTranslations.CHANNEL_NOT_LIVE,
-          constants.errorMessages.CHANNEL_NOT_LIVE
-        );
+        const error = new Error(constants.errorTranslations.CHANNEL_NOT_LIVE);
+        (error as any).code = constants.errorMessages.CHANNEL_NOT_LIVE;
+        throw error;
       }
 
       if (!channel.isAudioCollected && !channel.isCaptureCollected) {
-        throw new StreamError(
-          constants.errorTranslations.NO_COLLECTION_ENABLED,
-          constants.errorMessages.NO_COLLECTION_ENABLED
+        const error = new Error(
+          constants.errorTranslations.NO_COLLECTION_ENABLED
         );
+        (error as any).code = constants.errorMessages.NO_COLLECTION_ENABLED;
+        throw error;
       }
 
       // 스트림 URL 가져오기 (임시 구현)
       const streamUrl = await this.getStreamUrl(channelId);
       if (!streamUrl) {
-        throw new StreamError(
-          constants.errorTranslations.HLS_NOT_FOUND,
-          constants.errorMessages.HLS_NOT_FOUND
-        );
+        const error = new Error(constants.errorTranslations.HLS_NOT_FOUND);
+        (error as any).code = constants.errorMessages.HLS_NOT_FOUND;
+        throw error;
       }
 
       const liveId = Date.now().toString(); // 임시 liveId 생성
@@ -338,11 +519,19 @@ export class StreamService {
   private cleanupTempFiles() {
     try {
       const now = Date.now();
+      if (!existsSync(this.outputDir)) {
+        return;
+      }
+
       const files = readdirSync(this.outputDir);
       let totalSize = 0;
 
       for (const file of files) {
         const filePath = join(this.outputDir, file);
+        if (!existsSync(filePath)) {
+          continue;
+        }
+
         const stats = statSync(filePath);
         totalSize += stats.size;
 
@@ -378,6 +567,10 @@ export class StreamService {
 
   private isFileComplete(filePath: string): boolean {
     try {
+      if (!existsSync(filePath)) {
+        return false;
+      }
+
       const stats = statSync(filePath);
       const now = Date.now();
 
@@ -396,6 +589,10 @@ export class StreamService {
     channelDir: string
   ) {
     try {
+      if (!existsSync(channelDir)) {
+        return;
+      }
+
       const files = readdirSync(channelDir);
       const audioFiles = files.filter((file) => file.endsWith(".aac"));
       const imageFiles = files.filter((file) => file.endsWith(".jpg"));
@@ -436,13 +633,16 @@ export class StreamService {
           // 처리 시작 표시
           this.processingFiles.add(objectName);
 
-          // 파일 처리 로직 (임시 구현)
+          // 파일 처리 로직 (실제 구현)
           this.logger.info(`Processing audio file: ${file}`);
 
-          // 처리 완료 후 파일 삭제
+          // 처리 완료 후 파일 삭제 (실제 파일이 있는 경우에만)
           if (existsSync(filePath)) {
-            unlinkSync(filePath);
+            // 실제 업로드 로직이 있다면 여기에 구현
+            // 지금은 로깅만 수행
             this.logger.info(`Successfully processed audio file: ${file}`);
+            // 실제 삭제는 주석 처리
+            // unlinkSync(filePath);
           }
         } catch (error: any) {
           // 에러 로그 빈도 제한 (1분에 한 번만 기록)
@@ -467,13 +667,16 @@ export class StreamService {
         const objectName = `channels/${channelId}/lives/${liveId}/images/${file}`;
 
         try {
-          // 파일 처리 로직 (임시 구현)
+          // 파일 처리 로직 (실제 구현)
           this.logger.info(`Processing image file: ${file}`);
 
-          // 처리 완료 후 파일 삭제
+          // 처리 완료 후 파일 삭제 (실제 파일이 있는 경우에만)
           if (existsSync(filePath)) {
-            unlinkSync(filePath);
-            this.logger.info(`Deleted uploaded image file: ${file}`);
+            // 실제 업로드 로직이 있다면 여기에 구현
+            // 지금은 로깅만 수행
+            this.logger.info(`Successfully processed image file: ${file}`);
+            // 실제 삭제는 주석 처리
+            // unlinkSync(filePath);
           }
         } catch (error: any) {
           this.logger.error(

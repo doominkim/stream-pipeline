@@ -1,7 +1,6 @@
 import express from "express";
-import { StreamService } from "./stream.service";
+import { StreamService } from "../services/streamService";
 import { createLogger } from "@ws-ingestor/util";
-import { StreamError } from "./stream.error";
 
 export class StreamController {
   private readonly logger = createLogger("stream-controller");
@@ -20,6 +19,8 @@ export class StreamController {
     try {
       const { channelId } = req.params;
       const result = await this.streamService.startRecording(channelId);
+
+      console.log(result);
       res.status(200).json({ success: true, message: result });
     } catch (error: any) {
       this.logger.error(
@@ -28,7 +29,7 @@ export class StreamController {
       res.status(400).json({
         success: false,
         message: error.message || "Unknown error occurred",
-        code: (error as StreamError).code || "UNKNOWN_ERROR",
+        code: error.code || "UNKNOWN_ERROR",
       });
     }
   }
@@ -48,7 +49,7 @@ export class StreamController {
       res.status(400).json({
         success: false,
         message: error.message || "Unknown error occurred",
-        code: (error as StreamError).code || "UNKNOWN_ERROR",
+        code: error.code || "UNKNOWN_ERROR",
       });
     }
   }

@@ -1,5 +1,5 @@
 {
-  "name": "@ws-ingestor/audio-ingestor",
+  "name": "@ws-ingestor/media-ingestor",
   "version": "1.0.0",
   "description": "WebSocket Audio Ingestor Service",
   "main": "dist/index.js",

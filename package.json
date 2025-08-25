@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "pnpm -r run dev",
     "build": "pnpm -r run build",
-    "dev:chat-ingestor": "pnpm --filter @ws-ingestor/chat-ingestor dev",
-    "build:chat-ingestor": "pnpm --filter @ws-ingestor/chat-ingestor build",
-    "dev:chat-persistor": "pnpm --filter @ws-ingestor/chat-persistor dev",
-    "build:chat-persistor": "pnpm --filter @ws-ingestor/chat-persistor build",
+    "dev:chat": "pnpm --filter @ws-ingestor/chat-ingestor dev",
+    "build:chat": "pnpm --filter @ws-ingestor/chat-ingestor build",
+    "dev:media": "pnpm --filter @ws-ingestor/media-ingestor dev",
+    "build:media": "pnpm --filter @ws-ingestor/media-ingestor build",
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
     "clean": "pnpm -r run clean"

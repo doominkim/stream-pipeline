@@ -1,8 +1,8 @@
 import express from "express";
 import { createLogger, createHealthCheck } from "@ws-ingestor/util";
 import { DEFAULT_PORTS } from "@ws-ingestor/common";
-import { StreamService } from "./stream/stream.service";
-import { StreamController } from "./stream/stream.controller";
+import { StreamService } from "./services/streamService";
+import { StreamController } from "./controllers/streamController";
 
 const logger = createLogger("media-ingestor");
 const app = express();
