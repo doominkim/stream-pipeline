@@ -27,7 +27,7 @@ export const FileType: FileType = {
 
 export class StreamService {
   private readonly logger = createLogger("stream-service");
-  private readonly outputDir = "recordings";
+  private readonly outputDir = "tmp";
   private readonly maxFileAge = 24 * 60 * 60 * 1000; // 24시간
   private readonly maxDirSize = 10 * 1024 * 1024 * 1024; // 10GB
   private readonly channelProcesses: Map<string, ChannelProcesses> = new Map();
@@ -218,7 +218,7 @@ export class StreamService {
 
   private async startAudioCapture(
     channelId: string,
-    channelDir: string
+    audioDir: string
   ): Promise<void> {
     if (!this.initialized) {
       throw new Error("StreamService not initialized");
@@ -260,7 +260,7 @@ export class StreamService {
           "3",
           "-timestamp",
           "now",
-          join(channelDir, `audio_${Date.now()}_%03d.aac`),
+          join(audioDir, `audio_${Date.now()}_%04d.aac`),
         ]);
 
         if (processes.streamlink.stdout && processes.audio.stdin) {
@@ -268,9 +268,19 @@ export class StreamService {
         }
 
         processes.audio.on("exit", (code) => {
-          this.logger.info(
-            `Audio process for channel ${channelId} exited with code ${code}`
-          );
+          if (code === 0) {
+            this.logger.info(
+              `Audio process for channel ${channelId} completed successfully`
+            );
+          } else if (code === 183) {
+            this.logger.warn(
+              `Audio process for channel ${channelId} exited with code ${code} (likely no valid stream data)`
+            );
+          } else {
+            this.logger.warn(
+              `Audio process for channel ${channelId} exited with code ${code}`
+            );
+          }
           processes.audio = null;
         });
 
@@ -295,7 +305,7 @@ export class StreamService {
 
   private async startImageCapture(
     channelId: string,
-    channelDir: string
+    imageDir: string
   ): Promise<void> {
     if (!this.initialized) {
       throw new Error("StreamService not initialized");
@@ -327,7 +337,7 @@ export class StreamService {
           "fps=1/30",
           "-timestamp",
           "now",
-          join(channelDir, `capture_${Date.now()}_%03d.jpg`),
+          join(imageDir, `capture_${Date.now()}_%04d.jpg`),
         ]);
 
         if (processes.streamlink.stdout && processes.capture.stdin) {
@@ -335,9 +345,19 @@ export class StreamService {
         }
 
         processes.capture.on("exit", (code) => {
-          this.logger.info(
-            `Capture process for channel ${channelId} exited with code ${code}`
-          );
+          if (code === 0) {
+            this.logger.info(
+              `Capture process for channel ${channelId} completed successfully`
+            );
+          } else if (code === 183) {
+            this.logger.warn(
+              `Capture process for channel ${channelId} exited with code ${code} (likely no valid stream data)`
+            );
+          } else {
+            this.logger.warn(
+              `Capture process for channel ${channelId} exited with code ${code}`
+            );
+          }
           processes.capture = null;
         });
 
@@ -405,11 +425,16 @@ export class StreamService {
         throw error;
       }
 
-      const liveId = Date.now().toString(); // 임시 liveId 생성
-      const channelDir = join(this.outputDir, channelId, liveId);
+      const channelDir = join(this.outputDir, channelId);
+      const audioDir = join(channelDir, "audio");
+      const imageDir = join(channelDir, "image");
 
-      if (!existsSync(channelDir)) {
-        mkdirSync(channelDir, { recursive: true });
+      // 디렉토리 생성
+      if (!existsSync(audioDir)) {
+        mkdirSync(audioDir, { recursive: true });
+      }
+      if (!existsSync(imageDir)) {
+        mkdirSync(imageDir, { recursive: true });
       }
 
       // Streamlink 프로세스 시작
@@ -417,18 +442,18 @@ export class StreamService {
 
       // 오디오 수집이 활성화된 경우
       if (channel.isAudioCollected) {
-        await this.startAudioCapture(channelId, channelDir);
+        await this.startAudioCapture(channelId, audioDir);
       }
 
       // 캡처 수집이 활성화된 경우
       if (channel.isCaptureCollected) {
-        await this.startImageCapture(channelId, channelDir);
+        await this.startImageCapture(channelId, imageDir);
       }
 
       // 파일 생성 이벤트 감지
       const checkAndUploadFiles = async () => {
         try {
-          await this.checkAndUploadFiles(channelId, liveId, channelDir);
+          await this.checkAndUploadFiles(channelId, audioDir, imageDir);
         } catch (error: any) {
           this.logger.error(
             `Error in checkAndUploadFiles: ${error.message || "Unknown error"}`
@@ -619,105 +644,99 @@ export class StreamService {
 
   private async checkAndUploadFiles(
     channelId: string,
-    liveId: string,
-    channelDir: string
+    audioDir: string,
+    imageDir: string
   ) {
     try {
-      if (!existsSync(channelDir)) {
-        return;
-      }
-
-      const files = readdirSync(channelDir);
-      const audioFiles = files.filter((file) => file.endsWith(".aac"));
-      const imageFiles = files.filter((file) => file.endsWith(".jpg"));
-
-      // 완성된 파일만 필터링
-      const completedAudioFiles = audioFiles.filter((file) =>
-        this.isFileComplete(join(channelDir, file))
-      );
-      const completedImageFiles = imageFiles.filter((file) =>
-        this.isFileComplete(join(channelDir, file))
-      );
-
-      // 동시 업로드 수 제한 - 처리 중인 파일 수가 제한을 초과하면 대기
-      if (this.processingFiles.size >= this.MAX_CONCURRENT_UPLOADS) {
-        this.logger.info(
-          `Max concurrent uploads reached (${this.processingFiles.size}/${this.MAX_CONCURRENT_UPLOADS}), skipping this cycle`
+      // 오디오 파일 처리
+      if (existsSync(audioDir)) {
+        const audioFiles = readdirSync(audioDir).filter((file) =>
+          file.endsWith(".aac")
         );
-        return;
+        const completedAudioFiles = audioFiles.filter((file) =>
+          this.isFileComplete(join(audioDir, file))
+        );
+
+        // 처리할 파일 수 제한
+        const filesToProcess = completedAudioFiles.slice(
+          0,
+          this.MAX_CONCURRENT_UPLOADS - this.processingFiles.size
+        );
+
+        for (const file of filesToProcess) {
+          const filePath = join(audioDir, file);
+          const objectName = `channels/${channelId}/audio/${file}`;
+
+          // 이미 처리 중인 파일인지 확인
+          if (this.processingFiles.has(objectName)) {
+            continue;
+          }
+
+          try {
+            // 처리 시작 표시
+            this.processingFiles.add(objectName);
+
+            // 파일 처리 로직 (실제 구현)
+            this.logger.info(`Processing audio file: ${file}`);
+
+            // 처리 완료 후 파일 삭제 (실제 파일이 있는 경우에만)
+            if (existsSync(filePath)) {
+              // 실제 업로드 로직이 있다면 여기에 구현
+              // 지금은 로깅만 수행
+              this.logger.info(`Successfully processed audio file: ${file}`);
+              // 실제 삭제는 주석 처리
+              // unlinkSync(filePath);
+            }
+          } catch (error: any) {
+            // 에러 로그 빈도 제한 (1분에 한 번만 기록)
+            const now = Date.now();
+            if (!this.lastErrorLog || now - this.lastErrorLog > 60000) {
+              this.logger.error(
+                `Upload failed for audio file ${file}: ${
+                  error.message || "Unknown error"
+                }`
+              );
+              this.lastErrorLog = now;
+            }
+          } finally {
+            // 처리 완료 후 제거
+            this.processingFiles.delete(objectName);
+          }
+        }
       }
 
-      // 처리할 파일 수 제한
-      const filesToProcess = completedAudioFiles.slice(
-        0,
-        this.MAX_CONCURRENT_UPLOADS - this.processingFiles.size
-      );
+      // 이미지 파일 처리
+      if (existsSync(imageDir)) {
+        const imageFiles = readdirSync(imageDir).filter((file) =>
+          file.endsWith(".jpg")
+        );
+        const completedImageFiles = imageFiles.filter((file) =>
+          this.isFileComplete(join(imageDir, file))
+        );
 
-      // 오디오 파일 순차 처리
-      for (const file of filesToProcess) {
-        const filePath = join(channelDir, file);
-        const objectName = `channels/${channelId}/lives/${liveId}/audios/${file}`;
+        for (const file of completedImageFiles) {
+          const filePath = join(imageDir, file);
+          const objectName = `channels/${channelId}/image/${file}`;
 
-        // 이미 처리 중인 파일인지 확인
-        if (this.processingFiles.has(objectName)) {
-          continue;
-        }
+          try {
+            // 파일 처리 로직 (실제 구현)
+            this.logger.info(`Processing image file: ${file}`);
 
-        try {
-          // 처리 시작 표시
-          this.processingFiles.add(objectName);
-
-          // 파일 처리 로직 (실제 구현)
-          this.logger.info(`Processing audio file: ${file}`);
-
-          // 처리 완료 후 파일 삭제 (실제 파일이 있는 경우에만)
-          if (existsSync(filePath)) {
-            // 실제 업로드 로직이 있다면 여기에 구현
-            // 지금은 로깅만 수행
-            this.logger.info(`Successfully processed audio file: ${file}`);
-            // 실제 삭제는 주석 처리
-            // unlinkSync(filePath);
-          }
-        } catch (error: any) {
-          // 에러 로그 빈도 제한 (1분에 한 번만 기록)
-          const now = Date.now();
-          if (!this.lastErrorLog || now - this.lastErrorLog > 60000) {
+            // 처리 완료 후 파일 삭제 (실제 파일이 있는 경우에만)
+            if (existsSync(filePath)) {
+              // 실제 업로드 로직이 있다면 여기에 구현
+              // 지금은 로깅만 수행
+              this.logger.info(`Successfully processed image file: ${file}`);
+              // 실제 삭제는 주석 처리
+              // unlinkSync(filePath);
+            }
+          } catch (error: any) {
             this.logger.error(
-              `Upload failed for audio file ${file}: ${
+              `Error processing image file ${file}: ${
                 error.message || "Unknown error"
               }`
             );
-            this.lastErrorLog = now;
           }
-        } finally {
-          // 처리 완료 후 제거
-          this.processingFiles.delete(objectName);
-        }
-      }
-
-      // 이미지 파일 순차 처리
-      for (const file of completedImageFiles) {
-        const filePath = join(channelDir, file);
-        const objectName = `channels/${channelId}/lives/${liveId}/images/${file}`;
-
-        try {
-          // 파일 처리 로직 (실제 구현)
-          this.logger.info(`Processing image file: ${file}`);
-
-          // 처리 완료 후 파일 삭제 (실제 파일이 있는 경우에만)
-          if (existsSync(filePath)) {
-            // 실제 업로드 로직이 있다면 여기에 구현
-            // 지금은 로깅만 수행
-            this.logger.info(`Successfully processed image file: ${file}`);
-            // 실제 삭제는 주석 처리
-            // unlinkSync(filePath);
-          }
-        } catch (error: any) {
-          this.logger.error(
-            `Error processing image file ${file}: ${
-              error.message || "Unknown error"
-            }`
-          );
         }
       }
     } catch (error: any) {
@@ -762,8 +781,55 @@ export class StreamService {
   // 스트림 URL 가져오기
   private async getStreamUrl(channelId: string): Promise<string> {
     try {
-      // 실제로는 외부 API 등을 통해 스트림 URL을 가져와야 함
-      return `https://example.com/stream/${channelId}`;
+      this.logger.info(`Fetching stream URL for channel ${channelId}`);
+
+      // 치지직 API를 통해 실제 스트림 URL 가져오기
+      const response = await fetch(
+        `https://api.chzzk.naver.com/service/v2/channels/${channelId}/live-detail`,
+        {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            Referer: "https://chzzk.naver.com/",
+            Origin: "https://chzzk.naver.com",
+          },
+        }
+      );
+
+      console.log("response", response);
+
+      if (!response.ok) {
+        this.logger.error(
+          `Failed to fetch live detail for channel ${channelId}: ${response.status}`
+        );
+        return "";
+      }
+
+      const data = (await response.json()) as any;
+
+      if (!data.content || !data.content.livePlaybackJson) {
+        this.logger.warn(
+          `No live playback data available for channel ${channelId}`
+        );
+        return "";
+      }
+
+      const playbackData = JSON.parse(data.content.livePlaybackJson);
+      console.log("playbackData", playbackData);
+      const media = playbackData.media;
+      const hls = media.find((media: any) => media.mediaId === "HLS");
+
+      if (!hls) {
+        this.logger.warn(
+          `No media URL found for channel ${channelId}, using test stream for development`
+        );
+        throw new Error("No media URL found for channel " + channelId);
+      }
+
+      this.logger.info(
+        `Successfully retrieved stream URL for channel ${channelId}`
+      );
+      return hls.path;
     } catch (error) {
       this.logger.error(`Error getting stream URL for ${channelId}:`, error);
       return "";

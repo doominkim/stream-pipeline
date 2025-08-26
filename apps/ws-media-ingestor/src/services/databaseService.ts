@@ -122,7 +122,8 @@ export class DatabaseService {
     try {
       const query = `
         SELECT * FROM "channel" 
-        WHERE "deletedAt" IS NULL
+        WHERE "isAudioCollected" = true OR "isCaptureCollected" = true
+        AND "deletedAt" IS NULL
         ORDER BY "createdAt" DESC
       `;
 
@@ -264,7 +265,9 @@ export class DatabaseService {
     status: string;
     details?: any;
   }): Promise<void> {
-    this.logger.debug(`Recording log would be saved for channel: ${logData.channelId} - ${logData.action} (${logData.status})`);
+    this.logger.debug(
+      `Recording log would be saved for channel: ${logData.channelId} - ${logData.action} (${logData.status})`
+    );
     // recordingLog 테이블을 사용하지 않으므로 로그만 남김
     return;
   }
