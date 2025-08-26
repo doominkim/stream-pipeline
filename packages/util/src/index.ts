@@ -63,3 +63,10 @@ export const createHealthCheck = (serviceName: string) => {
 // Database utilities
 export * from "./database";
 export * from "./sqs";
+
+// Direct export for createDatabaseConnection to ensure compatibility
+export {
+  createDatabaseConnection,
+  DatabaseConnection,
+  DatabaseConfig,
+} from "./database";
