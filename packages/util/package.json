@@ -1,7 +1,7 @@
 {
-  "name": "@ws-ingestor/util",
+  "name": "@stream-pipeline/util",
   "version": "1.0.0",
-  "description": "Utility functions for WS Ingestor",
+  "description": "Utility functions for Stream Pipeline",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.859.0",
-    "@ws-ingestor/common": "workspace:*",
+    "@stream-pipeline/common": "workspace:*",
     "pg": "^8.11.0",
     "winston": "^3.11.0"
   },

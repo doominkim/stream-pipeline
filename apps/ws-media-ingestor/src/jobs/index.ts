@@ -14,7 +14,7 @@ export const createStreamRecordingJob = (
   dbService: DatabaseService
 ): CronJob => ({
   name: "stream-recording",
-  schedule: "*/30 * * * * *", // 5초마다 체크
+  schedule: "*/10 * * * * *", // 5초마다 체크
   enabled: true,
   task: async () => {
     try {

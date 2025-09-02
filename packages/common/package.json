@@ -1,7 +1,7 @@
 {
-  "name": "@ws-ingestor/common",
+  "name": "@stream-pipeline/common",
   "version": "1.0.0",
-  "description": "Common utilities and types for WS Ingestor",
+  "description": "Common utilities and types for Stream Pipeline",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

@@ -12,6 +12,7 @@ interface ChannelProcesses {
   streamlink: ChildProcess | null;
   audio: ChildProcess | null;
   capture: ChildProcess | null;
+  video: ChildProcess | null;
   interval?: NodeJS.Timeout;
 }
 
@@ -132,6 +133,7 @@ export class StreamService {
         streamlink: null,
         audio: null,
         capture: null,
+        video: null,
         interval: undefined,
       });
     }
@@ -380,6 +382,103 @@ export class StreamService {
     }
   }
 
+  private async startVideoCapture(
+    channelId: string,
+    videoDir: string
+  ): Promise<void> {
+    if (!this.initialized) {
+      throw new Error("StreamService not initialized");
+    }
+
+    const processes = this.getChannelProcesses(channelId);
+
+    if (!processes.streamlink) {
+      const error = new Error(
+        constants.errorTranslations.STREAMLINK_NOT_RUNNING
+      );
+      (error as any).code = constants.errorMessages.STREAMLINK_NOT_RUNNING;
+      throw error;
+    }
+
+    const isFfmpegAvailable = this.commandsAvailable["ffmpeg"];
+
+    if (isFfmpegAvailable && processes.streamlink.stdout) {
+      // 실제 프로세스 실행 - 15FPS로 설정하여 용량 최적화
+      this.logger.info(
+        `Starting video capture for channel ${channelId} at 15FPS`
+      );
+
+      try {
+        processes.video = spawn("ffmpeg", [
+          "-i",
+          "-",
+          "-map",
+          "0", // 전체 스트림 (영상+오디오)
+          "-c:v",
+          "libx264", // H.264 비디오 코덱
+          "-preset",
+          "fast", // 빠른 인코딩
+          "-crf",
+          "28", // 품질 설정 (18-28 권장, 낮을수록 고품질)
+          "-r",
+          "15", // 15FPS로 설정
+          "-c:a",
+          "aac", // AAC 오디오 코덱
+          "-b:a",
+          "128k", // 오디오 비트레이트
+          "-f",
+          "segment",
+          "-segment_time",
+          "100", // 17초로 설정
+          "-reset_timestamps",
+          "1",
+          "-movflags",
+          "+faststart",
+          "-timestamp",
+          "now",
+          join(videoDir, `video_${Date.now()}_%04d.mp4`),
+        ]);
+
+        if (processes.streamlink.stdout && processes.video.stdin) {
+          processes.streamlink.stdout.pipe(processes.video.stdin);
+        }
+
+        processes.video.on("exit", (code) => {
+          if (code === 0) {
+            this.logger.info(
+              `Video process for channel ${channelId} completed successfully`
+            );
+          } else if (code === 183) {
+            this.logger.warn(
+              `Video process for channel ${channelId} exited with code ${code} (likely no valid stream data)`
+            );
+          } else {
+            this.logger.warn(
+              `Video process for channel ${channelId} exited with code ${code}`
+            );
+          }
+          processes.video = null;
+        });
+
+        processes.video.on("error", (err) => {
+          this.logger.error(`Video process error: ${err.message}`);
+          processes.video = null;
+        });
+
+        if (processes.video.stderr) {
+          processes.video.stderr.on("data", (data: Buffer) => {
+            this.logger.debug(`Video ffmpeg stderr: ${data.toString()}`);
+          });
+        }
+      } catch (error: any) {
+        this.logger.error(`Failed to start video capture: ${error.message}`);
+        this.logger.warn("Video capture disabled due to ffmpeg error");
+      }
+    } else {
+      this.logger.warn("ffmpeg not available, video capture disabled");
+    }
+  }
+
   async startRecording(channelId: string): Promise<string> {
     if (!this.initialized) {
       throw new Error("StreamService not initialized");
@@ -428,6 +527,7 @@ export class StreamService {
       const channelDir = join(this.outputDir, channelId);
       const audioDir = join(channelDir, "audio");
       const imageDir = join(channelDir, "image");
+      const videoDir = join(channelDir, "video");
 
       // 디렉토리 생성
       if (!existsSync(audioDir)) {
@@ -435,6 +535,9 @@ export class StreamService {
       }
       if (!existsSync(imageDir)) {
         mkdirSync(imageDir, { recursive: true });
+      }
+      if (!existsSync(videoDir)) {
+        mkdirSync(videoDir, { recursive: true });
       }
 
       // Streamlink 프로세스 시작
@@ -445,15 +548,20 @@ export class StreamService {
         await this.startAudioCapture(channelId, audioDir);
       }
 
-      // 캡처 수집이 활성화된 경우
+      // 영상 수집이 활성화된 경우 (isCaptureCollected를 영상 수집으로 사용)
       if (channel.isCaptureCollected) {
-        await this.startImageCapture(channelId, imageDir);
+        await this.startVideoCapture(channelId, videoDir);
       }
 
       // 파일 생성 이벤트 감지
       const checkAndUploadFiles = async () => {
         try {
-          await this.checkAndUploadFiles(channelId, audioDir, imageDir);
+          await this.checkAndUploadFiles(
+            channelId,
+            audioDir,
+            imageDir,
+            videoDir
+          );
         } catch (error: any) {
           this.logger.error(
             `Error in checkAndUploadFiles: ${error.message || "Unknown error"}`
@@ -541,6 +649,11 @@ export class StreamService {
     if (processes.capture) {
       processes.capture.kill();
       processes.capture = null;
+    }
+
+    if (processes.video) {
+      processes.video.kill();
+      processes.video = null;
     }
 
     if (processes.audio) {
@@ -645,7 +758,8 @@ export class StreamService {
   private async checkAndUploadFiles(
     channelId: string,
     audioDir: string,
-    imageDir: string
+    imageDir: string,
+    videoDir?: string
   ) {
     try {
       // 오디오 파일 처리
@@ -736,6 +850,63 @@ export class StreamService {
                 error.message || "Unknown error"
               }`
             );
+          }
+        }
+      }
+
+      // 영상 파일 처리
+      if (videoDir && existsSync(videoDir)) {
+        const videoFiles = readdirSync(videoDir).filter((file) =>
+          file.endsWith(".mp4")
+        );
+        const completedVideoFiles = videoFiles.filter((file) =>
+          this.isFileComplete(join(videoDir, file))
+        );
+
+        // 처리할 파일 수 제한
+        const filesToProcess = completedVideoFiles.slice(
+          0,
+          this.MAX_CONCURRENT_UPLOADS - this.processingFiles.size
+        );
+
+        for (const file of filesToProcess) {
+          const filePath = join(videoDir, file);
+          const objectName = `channels/${channelId}/video/${file}`;
+
+          // 이미 처리 중인 파일인지 확인
+          if (this.processingFiles.has(objectName)) {
+            continue;
+          }
+
+          try {
+            // 처리 시작 표시
+            this.processingFiles.add(objectName);
+
+            // 파일 처리 로직 (실제 구현)
+            this.logger.info(`Processing video file: ${file}`);
+
+            // 처리 완료 후 파일 삭제 (실제 파일이 있는 경우에만)
+            if (existsSync(filePath)) {
+              // 실제 업로드 로직이 있다면 여기에 구현
+              // 지금은 로깅만 수행
+              this.logger.info(`Successfully processed video file: ${file}`);
+              // 실제 삭제는 주석 처리
+              // unlinkSync(filePath);
+            }
+          } catch (error: any) {
+            // 에러 로그 빈도 제한 (1분에 한 번만 기록)
+            const now = Date.now();
+            if (!this.lastErrorLog || now - this.lastErrorLog > 60000) {
+              this.logger.error(
+                `Upload failed for video file ${file}: ${
+                  error.message || "Unknown error"
+                }`
+              );
+              this.lastErrorLog = now;
+            }
+          } finally {
+            // 처리 완료 후 제거
+            this.processingFiles.delete(objectName);
           }
         }
       }

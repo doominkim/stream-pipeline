@@ -1,15 +1,15 @@
 {
-  "name": "ws-ingestor",
+  "name": "stream-pipeline",
   "version": "1.0.0",
-  "description": "WebSocket Ingestor Monorepo for MSA",
+  "description": "Stream Pipeline Monorepo for MSA",
   "private": true,
   "scripts": {
     "dev": "pnpm -r run dev",
     "build": "pnpm -r run build",
-    "dev:chat": "pnpm --filter @ws-ingestor/chat-ingestor dev",
-    "build:chat": "pnpm --filter @ws-ingestor/chat-ingestor build",
-    "dev:media": "pnpm --filter @ws-ingestor/media-ingestor dev",
-    "build:media": "pnpm --filter @ws-ingestor/media-ingestor build",
+    "dev:chat": "pnpm --filter @stream-pipeline/chat-ingestor dev",
+    "build:chat": "pnpm --filter @stream-pipeline/chat-ingestor build",
+    "dev:media": "pnpm --filter @stream-pipeline/media-ingestor dev",
+    "build:media": "pnpm --filter @stream-pipeline/media-ingestor build",
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
     "clean": "pnpm -r run clean"
@@ -18,7 +18,8 @@
     "monorepo",
     "msa",
     "websocket",
-    "ingestor"
+    "stream",
+    "pipeline"
   ],
   "author": "",
   "license": "ISC",

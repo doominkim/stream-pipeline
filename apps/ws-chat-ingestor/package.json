@@ -1,5 +1,5 @@
 {
-  "name": "@ws-ingestor/chat-ingestor",
+  "name": "@stream-pipeline/chat-ingestor",
   "version": "1.0.0",
   "description": "WebSocket Chat Ingestor Service",
   "main": "dist/index.js",
@@ -12,8 +12,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@ws-ingestor/common": "workspace:*",
-    "@ws-ingestor/util": "workspace:*",
+    "@stream-pipeline/common": "workspace:*",
+    "@stream-pipeline/util": "workspace:*",
     "@aws-sdk/client-kinesis": "^3.540.0",
     "chzzk-z": "0.1.17",
     "dotenv": "^16.3.0",

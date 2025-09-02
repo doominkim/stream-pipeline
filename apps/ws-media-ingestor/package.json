@@ -1,5 +1,5 @@
 {
-  "name": "@ws-ingestor/media-ingestor",
+  "name": "@stream-pipeline/media-ingestor",
   "version": "1.0.0",
   "description": "WebSocket Audio Ingestor Service",
   "main": "dist/index.js",
@@ -12,8 +12,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@ws-ingestor/common": "workspace:*",
-    "@ws-ingestor/util": "workspace:*",
+    "@stream-pipeline/common": "workspace:*",
+    "@stream-pipeline/util": "workspace:*",
     "dotenv": "^16.3.1",
     "express": "^4.18.0",
     "node-cron": "^3.0.2",
